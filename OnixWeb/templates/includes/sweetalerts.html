@@ -1,0 +1,31 @@
+<script src="{{ url_for('static', filename='assets/plugins/sweetalert2/sweetalert2.all.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='assets/plugins/sweetalert2/sweetalert2.css') }}" />
+<!--<link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.0/dist/sweetalert2.min.css" rel="stylesheet">-->
+<!--<link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@4/dark.css" rel="stylesheet">-->
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+           <script>
+           Swal.fire({
+                  title:"{{ category[0] }}!",
+                  text: "{{ message[0] }}",
+                  icon: "{{ category[1] }}",
+                  {% if message[3] == 'link' %}
+                    showCancelButton: true,
+                  {% else %}
+                    showCancelButton: false,
+                  {% endif %}
+                  confirmButtonColor: '#3085d6',
+                  cancelButtonColor: '#d33',
+                  confirmButtonText: '{{message[1]}}'
+           }).then((result) => {
+             if ('{{ message[3].upper() }}' === 'LINK')
+                  if (result.isConfirmed) {
+                    window.open('{{ message[2] }}', '_blank');
+                  }
+           });
+           </script>
+        {% endfor %}
+    {% endif %}
+{% endwith %}

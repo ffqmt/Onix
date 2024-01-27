@@ -1,0 +1,73 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Logs {% endblock %}
+
+{% block content %}
+<div class="main-container container-fluid">
+    <div class="row mt-8">
+        <div class="page-header">
+            <h1 class="page-title">Execução - ID: {{Thread.id}}</h1>
+            <div>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index">Início</a></li>
+                    <li class="breadcrumb-item active">Logs</li>
+                </ol>
+            </div>
+        </div>
+        <div id="logData">
+            {% include 'sistemas/RPAS/automacoes/logFetch.html' %}
+        </div>
+    </div>
+</div>
+<script>
+
+function setInnerHTML(elm, html) {
+  elm.innerHTML = html;
+
+  Array.from(elm.querySelectorAll("script"))
+    .forEach( oldScriptEl => {
+      const newScriptEl = document.createElement("script");
+
+      Array.from(oldScriptEl.attributes).forEach( attr => {
+        newScriptEl.setAttribute(attr.name, attr.value)
+      });
+
+      const scriptText = document.createTextNode(oldScriptEl.innerHTML);
+      newScriptEl.appendChild(scriptText);
+
+      oldScriptEl.parentNode.replaceChild(newScriptEl, oldScriptEl);
+  });
+};
+
+function updateLogView() {
+    const mainLog = document.getElementById("logData");
+        var xhr = new XMLHttpRequest();
+        var content = {};
+        xhr.open("POST", "/fetchlog-{{Thread.thread_name}}", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("x-csrf-token", "{{ csrf_token() }}");
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    setInnerHTML(mainLog, xhr.response);
+                } else {};
+            }
+        };
+        xhr.send();
+        refreshAfterPerc();
+};
+
+setInterval(updateLogView, {% if Thread.percentil != 100 %}3000{%else%}3000000{%endif%});
+
+
+function refreshAfterPerc() {
+    var refreshTimerInput = document.getElementById('percentil');
+    if (refreshTimerInput.value === '100') {
+       window.location.reload();
+    }
+    console.log(document.getElementById('percentil').value)
+};
+
+</script>
+
+{% endblock content %}

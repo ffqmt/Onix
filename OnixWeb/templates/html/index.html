@@ -1,0 +1,24 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Inicio {% endblock %}
+
+{% block content %}
+    <div class="main-container container-fluid">
+        <div class="page-inner mt-4">
+            <div class="row mt">
+                <div class="col-md-12" >
+                    <div class="card">
+                        <div class="card-body" style="align-self: center;">
+                            {% if current_user.is_authenticated %}
+                                <img src="data:image/png;base64, {{current_user.empresa.base64logo}}" style="height:10rem;">
+                            {% else %}
+                                <img style="height:15rem;" src="/static/assets/images/brand/onix-logo.png">
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+

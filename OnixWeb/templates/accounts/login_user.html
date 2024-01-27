@@ -1,0 +1,80 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Login {{Empresa.nome}} {% endblock %}
+
+{% block content %}
+    <div class="col col-login mx-auto mt-7">
+        <div class="text-center">
+            <img  style="max-width:10rem;" class="header-brand-img" alt="{{Empresa.nome}}" src="data:image/png;base64, {{Empresa.base64logo}}"/>
+        </div>
+    </div>
+    <div class="container-loginonix">
+        <div class="wrap-loginonix p-6">
+            <span class="loginonix-form-title pb-5">
+                {{Empresa.nome}}
+            </span>
+            <div class="panel panel-primary">
+                <div class="tab-menu-heading">
+                    <div class="tabs-menu1">
+                        <ul class="nav panel-tabs">
+                            <li class="mx-0"><a href="#tabUsuario" class="active" data-bs-toggle="tab">Usuário</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="panel-body tabs-menu-body p-0 pt-5">
+                    <div class="tab-content">
+                        <form style="padding: 0;border: none;background: none;"  method="POST" action="">
+                            <div class="tab-pane active" id="tabUsuario">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                                <input type="text" name="empresa" value="{{Empresa.cnpj}}" hidden>
+                                <div class="wrap-inputonix validate-input input-group">
+                                    <div class="input-group-text bg-white text-muted">
+                                        <i class="mdi mdi-account" aria-hidden="true"></i>
+                                    </div>
+                                    <input class="inputonix border-start-0 form-control ms-0 text-center" type="text" name="usuario" placeholder="Usuário" required>
+                                </div>
+                                <div class="wrap-inputonix validate-input input-group" id="showPassword">
+                                    <div class="input-group-text bg-white text-muted">
+                                        <i class="zmdi zmdi-key" aria-hidden="true"></i>
+                                    </div>
+                                    <input class="inputonix border-start-0 form-control ms-0 text-center" type="password" name="senha" placeholder="Senha" required>
+                                </div>
+                                {#
+                                <div class="text-end pt-4">
+                                    <p class="mb-0"><a href="forgot-password.html" class="text-primary ms-1">Esqueceu a senha?</a></p>
+                                </div>
+                                #}
+                                <div class="container-loginonix-form-btn">
+                                    <button class="loginonix-form-btn btn-primary btn" type="submit" name="validateUser" role="button">
+                                        Entrar
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+</div>
+{% block javascript %}
+{# SHOW PASSWORD JS #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+$("#showPassword a").on('click', function(event) {
+        console.log('clicou!');
+        event.preventDefault();
+        if ($('#showPassword input').attr("type") == "text") {
+            $('#showPassword input').attr('type', 'password');
+        } else if ($('#showPassword input').attr("type") == "password") {
+            $('#showPassword input').attr('type', 'text');
+        }
+});
+console.warn = () => {};
+</script>
+{% endblock javascript %}
+
+{% endblock content %}
+
+
+
+

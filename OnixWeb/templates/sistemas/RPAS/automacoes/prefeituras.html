@@ -1,0 +1,454 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} RPAs - Prefeituras {% endblock %}
+
+{% block content %}
+<div class="main-container container-fluid">
+    <div class="row mt-8">
+        <div class="page-header">
+            <h1 class="page-title">Prefeitura - {{cidade.name}} - {{cidade.uf}}  </h1>
+            <div>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index">Início</a></li>
+                    <li class="breadcrumb-item active">Prefeituras</li>
+                </ol>
+            </div>
+        </div>
+
+        {% if request.method == 'GET' %}
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+            <div class="card-body" style="justify-content: center !important; display: flex !important;">
+                <div class="card col-12 col-sm-12 col-md-8 col-lg-7 col-xl-5" >
+                    <div class="card-body text-center">
+                        <div class="card-header">
+                            <h3 class="card-title" style="margin-left: auto !important; margin-right:auto !important;">
+                                Tipo de Cadastro
+                            </h3>
+                        </div>
+                        <div class="row" style="margin:1rem; margin-top:4rem; justify-content: center !important; display: flex !important;">
+                             <div class="col">
+                                <button name="PessoaJuridica" class="btn btn-icon btn-white counter-icon bg-warning-gradient box-shadow-secondary num-counter mx-auto">
+                                     <i class="fa-solid fa-building text-white" style="font-size:4.5rem;"></i>
+                                </button>
+                                <h5 style="margin-top:1rem;">Pessoa Jurídica</h5>
+                            </div>
+                            <div class="col">
+                                <button name="PessoaFisica" class="btn btn-icon btn-white counter-icon bg-primary-gradient box-shadow-secondary num-counter mx-auto">
+                                     <i class="fa-solid fa-person text-white" style="font-size:4.5rem;"></i>
+                                </button>
+                                <h5 style="margin-top:1rem;">Pessoa Física</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+        {% endif %}
+        {% if request.method == 'POST' and 'PessoaJuridica' in request.form %}
+        <div class="row">
+            <div class="col-xl-12">
+                <form method="POST" name="FormExec" id="FormExec" onsubmit="return validateSelect()">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                <input type="hidden" name="tipo_pessoa" value="{{paramTipoPessoa}}"/>
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div class="card-title">Pessoa Jurídica</div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="form-group mg-t-5 col-7" style="margin-top:28px;">
+                                            <div class="col-11">
+                                                <div class="form-group">
+                                                    <label for="selecao" class="placeholder"></label>
+                                                    <div style="color: #fff !important;" id="selecao" name="selecao" required></div>
+                                                    <div id="checkSelect" class="invalid-feedback" style="font-size:0.75rem; display:none;"><b>Por favor, selecione pelo menos uma pessoa jurídica!</b></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group mg-b-5 col-2" style="margin-top:28px;">
+                                            <div class="row">
+                                                <label class="custom-control custom-radio-md mb-0 mt-1 col">
+                                                        <input type="radio" class="custom-control-input" id="padrao" name="tipo" value="padrao" checked>
+                                                        <span class="custom-control-label">Padrão</span>
+                                                </label>
+                                                <label class="custom-control custom-radio-md mb-0 mt-1 col">
+                                                        <input type="radio" class="custom-control-input" id="expecifico" name="tipo" value="expecifico">
+                                                        <span class="custom-control-label">Expecifíco</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                         <div class="mg-b-5 mg-t-5 col-2" style="margin-top:25px;">
+                                            <div class="input-group" style="height:3rem;">
+                                                <div class="input-group-text">
+                                                    <span class="fa fa-calendar tx-16 lh-0 op-6"></span>
+                                                </div>
+                                                <input class="form-control" id="competencia" placeholder="Selecionar Competência" type="text" name="competencia" required>
+                                                <div id="checkCompetencia" class="invalid-feedback" style="font-size:0.75rem; display:none;"><b>Selecione a competência.</b></div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group col-1 " style="justify-content: center !important; display: flex !important; margin-top:5px;">
+                                            <button class="btn btn-icon btn-success" role="button" type="submit" name="execPrefeituras" style="width: 4rem !important; height: 4rem !important; margin-top:12px;" >
+                                                <i class="fa-solid fa-play" style="font-size:2rem;"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" id="padraoOptions" style="display:block;">
+                            <div class="row">
+                                <div class="text-warning text-center" style="font-size:0.9rem; margin-bottom:10px;"><b>Método Padrão não inclui encerramentos / guia ISSQN.</b></div>
+                            </div>
+                        </div>
+                        <div class="col-12" id="expOptions" style="display:none;">
+                            <div class="row">
+                                <div id="checkExpecifico" class="invalid-feedback text-center" style="font-size:0.9rem; display:none; margin-bottom:10px;"><b>Selecione ao menos uma opção.</b></div>
+                                <div class="col-lg-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <div class="card-title">Processos Mensais</div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="enc_taken" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Encerramento Tomados</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="enc_provided" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Encerramento Prestados</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="issqn" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Guia ISSQN</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <div class="card-title">Relatórios e Arquivos</div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="taken" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Relatório Tomados (PDF/XML)</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="provided" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Relatório Prestados (PDF/XML)</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="nfe_taken" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">NFe Tomados (PDF)</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="nfe_provided" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">NFe Prestados (PDF)</span>
+                                                </label>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        {% if request.method == 'POST' and 'PessoaFisica' in request.form %}
+        <div class="row">
+            <div class="col-xl-12">
+                <form method="POST" name="FormExec" id="FormExec" onsubmit="return validateSelect()">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                <input type="hidden" name="tipo_pessoa" value="{{paramTipoPessoa}}"/>
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div class="card-title">Pessoas Física</div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="form-group mg-t-5 col-7" style="margin-top:28px;">
+                                            <div class="col-11">
+                                                <div class="form-group">
+                                                    <label for="selecao" class="placeholder"></label>
+                                                    <div style="color: #fff !important;" id="selecao" name="selecao" required></div>
+                                                    <div id="checkSelect" class="invalid-feedback" style="font-size:0.75rem; display:none;"><b>Por favor, selecione pelo menos uma pessoa física!</b></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group mg-b-5 col-2" style="margin-top:28px;">
+                                            <div class="row">
+                                                <label class="custom-control custom-radio-md mb-0 mt-1 col">
+                                                        <input type="radio" class="custom-control-input" id="padrao" name="tipo" value="padrao" checked>
+                                                        <span class="custom-control-label">Padrão</span>
+                                                </label>
+                                                <label class="custom-control custom-radio-md mb-0 mt-1 col">
+                                                        <input type="radio" class="custom-control-input" id="expecifico" name="tipo" value="expecifico">
+                                                        <span class="custom-control-label">Expecifíco</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="mg-b-5 mg-t-5 col-2" style="margin-top:25px;">
+                                            <div class="input-group" style="height:3rem;">
+                                                <div class="input-group-text">
+                                                    <span class="fa fa-calendar tx-16 lh-0 op-6"></span>
+                                                </div>
+                                                <input class="form-control" id="competencia" placeholder="Selecionar Competência" type="text" name="competencia" required>
+                                                <div id="checkCompetencia" class="invalid-feedback" style="font-size:0.75rem; display:none;"><b>Selecione a competência.</b></div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group col-1 " style="justify-content: center !important; display: flex !important; margin-top:5px;">
+                                            <button class="btn btn-icon btn-success" role="button" type="submit" name="execPrefeituras" style="width: 4rem !important; height: 4rem !important; margin-top:12px;" >
+                                                <i class="fa-solid fa-play" style="font-size:2rem;"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" id="padraoOptions" style="display:block;">
+                            <div class="row">
+                                <div class="text-warning text-center" style="font-size:0.9rem; margin-bottom:10px;"><b>Método Padrão não inclui encerramentos / guia ISSQN.</b></div>
+                            </div>
+                        </div>
+                        <div class="col-12" id="expOptions" style="display:none;">
+                            <div class="row">
+                                <div id="checkExpecifico" class="invalid-feedback text-center" style="font-size:0.9rem; display:none; margin-bottom:10px;"><b>Selecione ao menos uma opção.</b></div>
+                                <div class="col-lg-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <div class="card-title">Processos Mensais</div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="enc_taken" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Encerramento Tomados</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="enc_provided" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Encerramento Prestados</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="issqn" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Guia ISSQN</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <div class="card-title">Relatórios e Arquivos</div>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="taken" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Relatório Tomados (PDF/XML)</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="provided" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">Relatório Prestados (PDF/XML)</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="nfe_taken" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">NFe Tomados (PDF)</span>
+                                                </label>
+                                            </div>
+                                            <div class="form-group mg-b-10">
+                                                <label class="custom-switch ps-0">
+                                                    <input type="checkbox" name="nfe_provided" class="custom-switch-input">
+                                                    <span class="custom-switch-indicator me-3"></span>
+                                                    <span class="custom-switch-description mg-l-10">NFe Prestados (PDF)</span>
+                                                </label>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% block javascript %}
+<script src="https://unpkg.com/imask"></script>
+{#-- MULTISELECT --#}
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='assets/plugins/virtualselect/virtual-select.min.css') }}">
+<script type="text/javascript" src="{{ url_for('static', filename='assets/plugins/virtualselect/virtual-select.min.js') }}"></script>
+{% if 'PessoaFisica' in request.form%}
+<script>
+VirtualSelect.init({
+    ele: '#selecao',
+    options: [{% for fisica in FisicasCidadePrefeituras(cidade.id)|sort(attribute='name') %}
+                    {% set doc = fisica.cnpj_cpf %}
+					{ label: '{{fisica.name}} - {{doc[-11:-8]}}.{{doc[-8:-5]}}.{{doc[-5:-2]}}-{{doc[-2:]}} {% if fisica.ie %}- IE: {{fisica.ie}}{%endif%}', value: '{{fisica.id}}' },
+				   {% endfor %}],
+    multiple: true,
+    isRequired: true,
+    maxWidth: '100%',
+    placeholder: 'Nenhum Selecionado!',
+    allOptionsSelectedText: 'Todos',
+    noOptionsText: 'Nenhum resultado encontrado.',
+    noSearchResultsText: 'Nenhum encontrado.',
+    selectAllText: 'Selecionar todos',
+    searchPlaceholderText: 'Procurar...',
+    optionsSelectedText: 'Selecionados',
+    optionSelectedText: 'Selecionados',
+})
+</script>
+{% endif %}
+{% if 'PessoaJuridica' in request.form %}
+<script>
+VirtualSelect.init({
+    ele: '#selecao',
+    options: [{% for empresa in EmpresasCidadePrefeituras(cidade.id)|sort(attribute='name') %}
+                    {% set doc = empresa.cnpj_cpf %}
+					{ label: '{{empresa.name}} - {{doc[-14:-12]}}.{{doc[-12:-9]}}.{{doc[-9:-6]}}/{{doc[-6:-2]}}-{{doc[-2:]}} {% if empresa.ie %}- IE: {{empresa.ie}}{%endif%}', value: '{{empresa.id}}' },
+				   {% endfor %}],
+    multiple: true,
+    isRequired: true,
+    maxWidth: '100%',
+    placeholder: 'Nenhum Selecionado!',
+    allOptionsSelectedText: 'Todos',
+    noOptionsText: 'Nenhum resultado encontrado.',
+    noSearchResultsText: 'Nenhum encontrado.',
+    selectAllText: 'Selecionar todos',
+    searchPlaceholderText: 'Procurar...',
+    optionsSelectedText: 'Selecionados',
+    optionSelectedText: 'Selecionados',
+})
+</script>
+{% endif %}
+{% if 'PessoaFisica' in request.form or 'PessoaJuridica' in request.form %}
+<script src="http://code.jquery.com/jquery-1.12.1.min.js"></script>
+<script src="http://code.jquery.com/ui/1.11.4/jquery-ui.min.js"></script>
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='assets/plugins/monthpicker/MonthPicker.css') }}">
+<script type="text/javascript" src="{{ url_for('static', filename='assets/plugins/monthpicker/MonthPicker.js') }}"></script>
+<script>
+var today = new Date();
+function formatDate(date) {
+    var year = date.getFullYear();
+    var month = ('0' + (date.getMonth() + 1)).slice(-2);
+    var day = ('0' + date.getDate()).slice(-2);
+    return year + '-' + month + '-' + day;
+}
+
+jSuites.calendar(document.getElementById('competencia'),{
+    type: 'year-month-picker',
+    format: 'MM-YYYY',
+    resetButton: false,
+    closeButton: false,
+    placeholder: "Selecionar competência",
+    validRange: [ '2023-01-01', formatDate(today)]
+});
+</script>
+<script>
+document.getElementById('padrao').addEventListener('click', function() {
+    document.getElementById('expOptions').style.display = 'none';
+    document.getElementById('padraoOptions').style.display = 'block';
+});
+
+document.getElementById('expecifico').addEventListener('click', function() {
+    document.getElementById('expOptions').style.display = 'block';
+    document.getElementById('padraoOptions').style.display = 'none';
+});
+
+function validateSelect() {
+    var formAim = document.forms["FormExec"]["selecao"].value;
+    var formComp = document.forms["FormExec"]["competencia"].value;
+    if ((formAim == null || formAim == "")) {
+         document.getElementById('checkSelect').style.display = 'block';
+         return false;
+    } else {
+         document.getElementById('checkSelect').style.display = 'none';
+    }
+    if ((formComp == null || formComp == "")) {
+      document.getElementById('checkCompetencia').style.display = 'block';
+      return false;
+    } else {
+        document.getElementById('checkCompetencia').style.display = 'none';
+    }
+}
+
+if ( window.history.replaceState ) {
+  window.history.replaceState( null, null, window.location.href );
+}
+
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.getElementById("FormExec").addEventListener("submit", function(event) {
+            var radioExpecifico = document.getElementById("expecifico");
+            if (radioExpecifico.checked) {
+                var checkboxes = document.querySelectorAll('.custom-switch-input');
+                var atLeastOneSelected = Array.from(checkboxes).some(function(checkbox) {
+                    return checkbox.checked;
+                });
+
+                if (!atLeastOneSelected) {
+                    event.preventDefault();
+                    document.getElementById('checkExpecifico').style.display = 'block';
+                    return false;
+                }
+                else { document.getElementById('checkExpecifico').style.display = 'none';
+                }
+            }
+        });
+    });
+</script>
+{% endif %}
+
+
+
+{% endblock javascript %}
+
+{% endblock content %}

@@ -1,0 +1,78 @@
+
+<div class="col-9" style="margin:auto !important;">
+    <div class="row">
+        <div class="card">
+            <div class="card-body text-center">
+                <h3>Dados da Execução</h3>
+            </div>
+            <div class="card-body">
+                <div class="media mb-4 d-flex">
+                    <div class="media-icon bg-primary text-white mb-3 mb-sm-0 me-3 mt-1">
+                        <svg style="width:24px;height:24px;margin-top:-8px" viewBox="0 0 24 24">
+                            <path fill="currentColor" d="M20,6C20.58,6 21.05,6.2 21.42,6.59C21.8,7 22,7.45 22,8V19C22,19.55 21.8,20 21.42,20.41C21.05,20.8 20.58,21 20,21H4C3.42,21 2.95,20.8 2.58,20.41C2.2,20 2,19.55 2,19V8C2,7.45 2.2,7 2.58,6.59C2.95,6.2 3.42,6 4,6H8V4C8,3.42 8.2,2.95 8.58,2.58C8.95,2.2 9.42,2 10,2H14C14.58,2 15.05,2.2 15.42,2.58C15.8,2.95 16,3.42 16,4V6H20M4,8V19H20V8H4M14,6V4H10V6H14M12,9A2.25,2.25 0 0,1 14.25,11.25C14.25,12.5 13.24,13.5 12,13.5A2.25,2.25 0 0,1 9.75,11.25C9.75,10 10.76,9 12,9M16.5,18H7.5V16.88C7.5,15.63 9.5,14.63 12,14.63C14.5,14.63 16.5,15.63 16.5,16.88V18Z" />
+                        </svg>
+                    </div>
+                    <div class="media-body">
+                        <h6 class="font-weight-semibold mb-1">Usuário: <b>{{Thread.usuario.realname}}</b></h6>
+                        <h6 class="font-weight-semibold mb-1">Empresa: <b>{{Thread.empresa.nome}}</b></h6>
+                    </div>
+                    <div class="media-body text-center mt-2">
+                        <input id="percentil" value="{{Thread.percentil}}" hidden>
+                        {% if Thread.percentil != 100 %}
+                            <button onclick="" class="btn ripple btn-danger w-md" disabled><b>Baixar Arquivo</b></button>
+                            <div class="row mt-2">
+                                <span> &bull; aguarde a conclusão para baixar os arquivos.</span>
+                            </div>
+                        {%else%}
+                        <form method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                            <button onclick="" class="btn ripple btn-success w-md" name="baixarArquivo"><b>Baixar Arquivo</b></button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="progress progress-lg mb-3">
+                    <div class="progress-bar  progress-bar-striped progress-bar-animated {% if Thread.percentil != 100 %}bg-blue-1{%else%}bg-success{%endif%}" style="width: {{Thread.percentil}}%;"><b>{{Thread.percentil}}%</b></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <ul class="notification">
+        {% for log in Logs|sort(attribute="data", reverse=true) %}
+        <li>
+            <div class="notification-time">
+                <span class="date">{{log.data.strftime('%d/%m/%Y')}}</span>
+                <span class="time">{{log.data.strftime('%H:%M')}}</span>
+            </div>
+            <div class="notification-icon">
+                <a style="border:3px solid var(--primary-bg-color) !important;"></a>
+            </div>
+            <div class="notification-time-date mb-2 d-block d-md-none">
+                <span class="date">{{log.data.strftime('%d/%m/%Y')}}</span>
+                <span class="time ms-2">{{log.data.strftime('%H:%M')}}</span>
+            </div>
+            <div class="notification-body">
+                <div class="media mt-0">
+                    <span class="badge bg-{{log.bg_status}} px-2 pb-1" style="color: var(--primary-bg-color); margin-top:-1.4rem; margin-left:-1rem; position:absolute; z-index:9999999; font-weight: bolder; !important;">{{log.status}}</span>
+                     <div class="main-avatar avatar-md" style="width:6rem;">
+                        <span class="avatar avatar-md me-3 bg-{{log.bg_tipo}}" style="width:6rem; border-radius:5px;">{{log.tipo}}</span>
+                    </div>
+                    <div class="media-body ms-3 d-flex">
+                        <div class="">
+                            <p class="fs-15 text-dark fw-bold mb-0">{{log.log_title}}</p>
+                            <p class="mb-0 fs-13 text-dark">{{log.log_desc}}</p>
+                        </div>
+                        <div class="notify-time">
+                            <p class="mb-0 text-muted fs-11">{{log.data.strftime('%H:%M:%S')}}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+

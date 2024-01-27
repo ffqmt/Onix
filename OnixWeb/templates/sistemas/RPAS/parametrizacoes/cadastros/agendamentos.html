@@ -1,0 +1,166 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Agendamentos RPA {% endblock %}
+
+{% block content %}
+<div class="main-container container-fluid">
+    <div class="row mt-8">
+        <div class="page-header">
+            <h1 class="page-title">Agendamentos RPA</h1>
+            <div>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index">Início</a></li>
+                    <li class="breadcrumb-item active">Agendamentos RPA</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Agendamento RPA - Robotic Proccess Automation</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-2 col-sm-12">
+                                <h4 class="card-title mb-4">Configurações</h4>
+                                <div class="card-body p-1" style="justify-content: right !important; display: flex !important;">
+                                    <a onclick="refreshScriptModal()" type="button" class="modal-effect btn btn-lg btn-secondary-gradient m-1" data-bs-toggle="modal" data-bs-original-title="Novo Agendamento" data-bs-effect="effect-rotate-left" href="#newAgeModal">
+                                        <i class="fa-regular fa-calendar-plus m-2"></i>
+                                        Novo Agendamento
+                                    </a>
+                                </div>
+                                <div class="modal fade" id="newAgeModal">
+                                    {% include 'sistemas/RPAS/parametrizacoes/cadastros/modals/modal_agendamento_new.html' %}
+                                </div>
+                            </div>
+                            <div class="col-md-10 col-sm-12">
+                                <h4 class="card-title mb-4">Meus Agendamentos</h4>
+                                {% for agendamento in Agendamentos %}
+                                <div class="row">
+                                    <div class="col-md-6 col-sm-12">
+                                        <div class="card border p-0 pt-3" style="min-height:16rem;">
+                                            <div class="card-body pt-3">
+                                                <div class="dropdown">
+                                                    <a class="nav-link float-end text-muted pe-0 pt-0" href="javascript:void(0)" data-bs-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><i class="fe fe-more-vertical"></i></a>
+                                                    <div class="dropdown-menu dropdown-menu-end">
+                                                        <form method="POST">
+                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                                                            <button class="dropdown-item" name="delAgendamento" value="{{agendamento.id}}" type="submit" role="button">
+                                                                <i class="fe fe-trash-2 me-1" ></i>
+                                                                Remover Agendamento
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                                <h5 class="card-title">(ID: {{agendamento.id}}) Agendamento {{agendamento.tipo_agendamento}}</h5>
+                                                <div class="row">
+                                                    <div class="col-2 text-center">
+                                                        {% if agendamento.tipo_pessoa_agendamento == 'PJ' %}
+                                                        <i title="Pessoa Jurídica" class="fa-solid fa-building text-white" style="font-size:2.5rem;"></i>
+                                                        {% elif agendamento.tipo_pessoa_agendamento == 'PF' %}
+                                                        <i title="Pessoa Física" class="fa-solid fa-person text-white" style="font-size:2.5rem;"></i>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="col-10">
+                                                        <h6 class="card-subtitle text-muted text-center mt-1">Primeira Agenda: <b>{{agendamento.data_primeiro_agendamento.strftime("%d/%m/%Y %H:%M")}}</b></h6>
+                                                        {% if agendamento.in_repeat %}
+                                                        <h6 class="card-subtitle text-info text-center"><b>( este agendamento se repetirá mensalmente )</b></h6>
+                                                        {%endif%}
+                                                    </div>
+                                                </div>
+
+                                                <div class="text-center">
+                                                    <span><b>Processos</b></span>
+                                                </div>
+                                                {% for i in agendamento.processos_inclusos[1:-1].split('", "') %}
+                                                    <a class="badge bg-primary-gradient badge-md  me-1 mb-1 mt-1" style="font-size:0.8rem; width:8rem">{{i.replace('"','').replace("_"," ").replace("sefaz","").replace("pref","").title()}}</a>
+                                                {% endfor %}
+                                            </div>
+                                            <div class="card-footer p-2 text-center" style="height:2rem !important;">
+                                                <div class="text-warning">Agendado por <b>{{agendamento.usuario.realname}}</b> em <b>{{agendamento.data_cadastro.strftime("%d/%m/%Y %H:%M")}}</b></div><br>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 col-sm-12">
+                                        <div class="card border p-0 pt-3" style="min-height:16rem;">
+                                            <div class="card-body pt-3">
+                                                <h5 class="card-title">Status</h5>
+                                                <div class="text-center">
+                                                    {% if agendamento.job_trigger %}
+                                                        {% if 'date' in agendamento.job_trigger %}
+                                                        <span>Execução Única</span><br>
+                                                        {% elif 'cron' in agendamento.job_trigger %}
+                                                        <span>Execução Mensal</span><br>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                    <span>{% if agendamento.status %}{{agendamento.status}}{%else%}<b class="text-danger">Nenhum Status de Execução </b>{%endif%}</span><br>
+                                                    {% set job = getJob(agendamento.id) %}
+                                                    {% if job %}
+                                                        {% set proximaExec = job.trigger.get_next_fire_time(None, agora()) %}
+                                                        {% set horaExec = proximaExec.strftime('%d/%m/%Y %H:%M') %}
+                                                        {% set TimeZone = proximaExec.strftime('%Z') %}
+                                                    <span>
+                                                        {{horaExec}} (UTC{{TimeZone}}:00) {% if proximaExec.strftime('%d/%m/%Y') == agora().strftime('%d/%m/%Y') %}<b class="text-info">( Hoje )</b>{%endif%}
+                                                    </span><br>
+                                                    {% else %}
+                                                    <span>
+                                                        Sem próxima execução.
+                                                    </span><br>
+
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% block javascript %}
+
+<script src="https://unpkg.com/imask"></script>
+<script>
+
+function refreshScriptModal() {
+    var forms = document.getElementsByClassName('needs-validation');
+    var validation = Array.prototype.filter.call(forms, function(form) {
+    form.addEventListener('submit', function(event) {
+      if (form.checkValidity() === false) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false);
+    });
+    $('.form-group select').select2({
+      minimumResultsForSearch: Infinity
+    });
+    $('.modal-effect').on('click', function (e) {
+        e.preventDefault();
+        var effect = $(this).attr('data-bs-effect');
+        $('.modal').addClass(effect);
+    });
+    $('.modal').on('hidden.bs.modal', function (e) {
+        $(this).removeClass(function (index, className) {
+            return (className.match(/(^|\s)effect-\S+/g) || []).join(' ');
+        });
+    });
+};
+
+
+if ( window.history.replaceState ) {
+  window.history.replaceState( null, null, window.location.href );
+}
+</script>
+
+{% endblock javascript %}
+
+{% endblock content %}

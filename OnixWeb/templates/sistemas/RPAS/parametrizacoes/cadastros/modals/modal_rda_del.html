@@ -1,0 +1,40 @@
+{% if cadDel %}
+<form method="POST" class="needs-validation" novalidate>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+    <div class="modal-dialog modal-dialog-centered text-center" role="document">
+    <div class="modal-content tx-size-sm">
+        <div class="modal-body text-center p-4 pb-5">
+            <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" role="button" type="button"><span aria-hidden="true">&times;</span></button>
+            <i class="icon icon-info fs-70 text-warning lh-1 my-5 d-inline-block"></i>
+            <h4 class="text-warning fw-bold">Atenção!</h4>
+            <div class="card-body">Você tem certeza que gostaria de deletar a {% if 'Juridica' in segment %}empresa{% elif 'Fisica' in segment %}pessoa física{%endif%}?</div>
+            <div class="card-body text-white">{{cadDel.name}}</div>
+
+            <button class="btn btn-danger m-2" role="button" name="deletarCadastro" value="{{cadDel.id}}" type="submit">Deletar</button>
+            <button class="btn btn-light m-2" data-bs-dismiss="modal" role="button" type="button">Fechar</button>
+        </div>
+    </div>
+</div>
+</form>
+{% else %}
+<div class="modal-dialog modal-dialog-centered text-center" role="document">
+    <div class="modal-content modal-content-demo">
+        <div class="modal-header">
+            <h6 class="modal-title">Carregando...</h6><button aria-label="Close" class="btn-close" data-bs-dismiss="modal"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+            <h6>Aguarde...</h6>
+
+            <div class="spinner-grow text-secondary me-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+
+            <p>Por favor, aguarde. Caso demore, feche e tente novamente.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+

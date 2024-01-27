@@ -1,0 +1,37 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Scheduled Jobs {% endblock %}
+
+{% block content %}
+{% if current_user.admin %}
+    <div class="main-container container-fluid">
+        <div class="page-inner mt-4">
+            <div class="row mt">
+                <div class="col-md-12" >
+                    <div class="card">
+                        <div class="card-body" style="align-self: center;">
+                            Total de Jobs: {{SchedulerJobs|length}}<br>
+
+                        {% for job in SchedulerJobs %}
+                           <div class="card">
+                           {% set dados_ag = dadosAgendamento(job.id) %}
+                            ----------------------------<br>
+                            Empresa: {{dados_ag.empresa.nome}}<br>
+                            ID: {{job.id}}<br>
+                            FunçãoExecutada: {{job.name}}<br>
+                            Proxima Exec: {{job.next_run_time}}<br>
+                            Args: {{job.args}}<br>
+                            Kwargs : {{job.kwargs}}<br>
+                            ----------------------------<br>
+                            </div>
+                        {% endfor %}
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock content %}
+

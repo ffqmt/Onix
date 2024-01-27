@@ -1,0 +1,405 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Cadastro Pessoa Física  {% endblock %}
+
+{% block content %}
+    <div class="main-container container-fluid">
+        <div class="row mt-8">
+            <div class="col-6 col-sm-6 col-md-6 col-lg-6 col-xl-2">
+                <div class="card bg-secondary-gradient img-card box-primary-shadow">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <div class="text-white">
+                                <h2 class="mb-0 number-font">{{ FisicaRDA|length }}</h2>
+                                <p class="text-white mb-0">Cadastradas</p>
+                            </div>
+                            <div class="ms-auto"> <i class="fa-solid fa-person text-white fs-30 me-2 mt-2"></i> </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-md-6 col-lg-6 col-xl-2">
+                <div class="card bg-success-gradient img-card box-secondary-shadow">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <div class="text-white">
+                                <h2 class="mb-0 number-font">{{ FisicaRDA | selectattr('active') | map(attribute='active') | list|length }}</h2>
+                                <p class="text-white mb-0">Ativas</p>
+                            </div>
+                            <div class="ms-auto"><i class="fa-solid fa-person-circle-check text-white fs-30 me-2 mt-2"></i> </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-md-6 col-lg-6 col-xl-2">
+                <div class="card bg-warning-gradient img-card box-success-shadow">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <div class="text-white">
+                                <h2 class="mb-0 number-font">{{ FisicaRDA | selectattr('provided') | map(attribute='provided') | list|length }}</h2>
+                                <p class="text-white mb-0">Prestados</p>
+                            </div>
+                            <div class="ms-auto"> <i class="fas fa-handshake text-white fs-30 me-2 mt-2"></i> </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-md-6 col-lg-6 col-xl-2">
+                <div class="card bg-info-gradient img-card box-info-shadow">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <div class="text-white">
+                                <h2 class="mb-0 number-font">{{ FisicaRDA | selectattr('taken') | map(attribute='taken') | list|length }}</h2>
+                                <p class="text-white mb-0">Tomados</p>
+                            </div>
+                            <div class="ms-auto"> <i class="fas fa-handshake text-white fs-30 me-2 mt-2"></i> </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-md-6 col-lg-6 col-xl-2">
+                <div class="card bg-primary-gradient img-card box-info-shadow">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <div class="text-white">
+                                <h2 class="mb-0 number-font">{{ FisicaRDA | selectattr('issqn') | map(attribute='issqn') | list|length }}</h2>
+                                <p class="text-white mb-0">Guia ISSQN</p>
+                            </div>
+                            <div class="ms-auto"> <i class="fa-solid fa-file-invoice text-white fs-30 me-2 mt-2"></i> </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-sm-6 col-md-6 col-lg-6 col-xl-2">
+                <div class="card bg-danger-gradient img-card box-info-shadow">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <div class="text-white">
+                                <h2 class="mb-0 number-font">{{ FisicaRDA | selectattr('sefaz') | map(attribute='sefaz') | list|length }}</h2>
+                                <p class="text-white mb-0">Sefaz</p>
+                            </div>
+                            <div class="ms-auto"> <i class="fa-solid fa-building-columns text-white fs-30 me-2 mt-2"></i> </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="page-header">
+            <h1 class="page-title">Pessoa Física</h1>
+            <div>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index">Início</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Cadastros</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12 col-sm-12">
+                <div class="card-body p-1" style="justify-content: right !important; display: flex !important;">
+                    <a onclick="refreshScriptModal()" type="button" class="modal-effect btn btn-lg btn-secondary-gradient m-1" data-bs-toggle="modal" data-bs-original-title="Novo Cadastro" data-bs-effect="effect-slide-in-right" href="#newCadModal">
+                        <i class="fa-solid fa-plus m-2"></i>
+                        Novo Cadastro
+                    </a>
+                </div>
+                <div class="modal fade" id="newCadModal">
+                    {% include 'sistemas/RPAS/parametrizacoes/cadastros/modals/modal_rda_new.html' %}
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12 col-sm-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">Cadastros de Pessoa Física</h3>
+                    </div>
+                    <div class="card-body pt-4">
+                        <div class="grid-margin">
+                            <div class="">
+                                <div class="panel panel-primary">
+                                    <div class="tab-menu-heading border-0 p-0">
+                                        <div class="tabs-menu1">
+                                            <ul class="nav panel-tabs product-sale">
+                                                <li><a href="#tabTodas" class="active" data-bs-toggle="tab">Todas</a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="panel-body tabs-menu-body border-0 pt-0">
+                                        <div class="tab-content">
+                                            <div class="tab-pane active" id="tabTodas">
+                                                <div class="table-responsive">
+                                                    <table id="pessoafisica-table" class="table table-bordered text-nowrap mb-0" style="border-radius:5px;">
+                                                        <thead class="border-top" style="background-color:#214A5B">
+                                                            <tr>
+                                                                <th class="bg-transparent border-bottom-0 text-center" style="width: 5%;">Id</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center"> Nome</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center"> CPF</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center"> Inscrição</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center"> Cidade</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center" style="width: 10%;">Status</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center" style="width: 10%;">Prefeitura</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center" style="width: 10%;">Sefaz</th>
+                                                                <th class="bg-transparent border-bottom-0 text-center" style="width: 5%;">Ações</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                        {% for pessoa in FisicaRDA %}
+                                                        <tr class="border-bottom">
+                                                                <td class="text-center">
+                                                                    <div class="mt-0 mt-sm-2 d-block">
+                                                                        <h6 class="mb-0 fs-14 fw-semibold"> #{{pessoa.id}}</h6>
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-left">
+                                                                    <div class="mt-0 mt-sm-2">
+                                                                        <h6 class="mb-0 fs-14 fw-semibold"> {{pessoa.name}}</h6>
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    {% set doc = pessoa.cnpj_cpf %}
+                                                                    <div class="mt-0 mt-sm-2">
+                                                                        <h6 class="mb-0 fs-14 fw-semibold">{{doc[-11:-8]}}.{{doc[-8:-5]}}.{{doc[-5:-2]}}-{{doc[-2:]}}</h6>
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    <div class="mt-0 mt-sm-2">
+                                                                        <h6 class="mb-0 fs-14 fw-semibold"> {{pessoa.ie}}</h6>
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-center">
+                                                                    <div class="mt-0 mt-sm-2">
+                                                                        <h6 class="mb-0 fs-14 fw-semibold"> {{pessoa.city.name}} - {{pessoa.city.uf}}</h6>
+                                                                    </div>
+                                                                </td>
+
+                                                                <td>
+                                                                    <div class="row p-1">
+                                                                        <span class="fw-bold badge rounded-pill p-2 px-3 {% if pessoa.active %}bg-success-transparent text-green{% else %}bg-danger-transparent text-danger{%endif%}" style="margin:1px;">{% if pessoa.active %}ATIVA{%else%}INATIVA{%endif%}</span>
+                                                                        {% if pessoa.active_mensal %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-secondary-transparent text-white" style="margin:1px;">MENSAL</span>{%endif%}
+                                                                    </div>
+                                                                </td>
+
+                                                                <td>
+                                                                    <div class="row p-1">
+                                                                    {% if pessoa.pref_enc_tomado %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-info-transparent text-azure" style="margin:1px;">Enc. Tomado</span>{%endif%}
+                                                                    {% if pessoa.pref_enc_prestado %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-info-transparent text-azure" style="margin:1px;">Enc. Prestado</span>{%endif%}
+                                                                    {% if pessoa.pref_guia_issqn %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-info-transparent text-azure" style="margin:1px;">Guia ISSQN</span>{%endif%}
+                                                                    {% if pessoa.pref_rel_tomado %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-info-transparent text-azure" style="margin:1px;">Rel. Tomado</span>{%endif%}
+                                                                    {% if pessoa.pref_rel_prestado %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-info-transparent text-azure" style="margin:1px;">Rel. Prestado</span>{%endif%}
+                                                                    {% if pessoa.pref_nfe_tomado %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-info-transparent text-azure" style="margin:1px;">NFe Tomado</span>{%endif%}
+                                                                    {% if pessoa.pref_nfe_prestado %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-info-transparent text-azure" style="margin:1px;">NFe Prestado</span>{%endif%}
+                                                                    </div>
+                                                                </td>
+
+                                                                <td>
+                                                                    <div class="row p-1">
+                                                                    {% if pessoa.sefaz_nfe_saida %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-danger-transparent text-orange" style="margin:1px;">NFe Saída</span>{%endif%}
+                                                                    {% if pessoa.sefaz_nfe_entrada %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-danger-transparent text-orange" style="margin:1px;">NFe Entrada</span>{%endif%}
+                                                                    {% if pessoa.sefaz_cte_emitido %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-danger-transparent text-orange" style="margin:1px;">CTe Emitido</span>{%endif%}
+                                                                    {% if pessoa.sefaz_cte_tomado %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-danger-transparent text-orange" style="margin:1px;">CTe Tomado</span>{%endif%}
+                                                                    {% if pessoa.sefaz_nfce %}<span class="fw-bold badge rounded-pill p-2 px-3 bg-danger-transparent text-orange" style="margin:1px;">NFCe Emitida</span>{%endif%}
+                                                                    </div>
+                                                                </td>
+
+                                                                <td>
+                                                                    <div class="row p-1">
+                                                                            <a class="modal-effect btn text-info btn-lg" onclick="fetchEdit('{{pessoa.id}}')" data-bs-toggle="modal" data-bs-original-title="Editar" title="Editar" data-bs-effect="effect-slide-in-right" href="#editModal">
+                                                                                <span class="fa-solid fa-pen-to-square fs-20"></span>
+                                                                            </a>
+                                                                            <div class="modal fade" id="editModal">
+                                                                                {% include 'sistemas/RPAS/parametrizacoes/cadastros/modals/modal_rda_edit.html' %}
+                                                                            </div>
+                                                                            <a onclick="fetchDel('{{pessoa.id}}')" class="modal-effect btn text-danger btn-lg" data-bs-toggle="modal" data-bs-original-title="Deletar" title="Deletar" data-bs-effect="effect-flip-vertical" href="#delModal">
+                                                                                <span class="fa-solid fa-trash-can fs-20"></span>
+                                                                            </a>
+                                                                            <div class="modal fade" id="delModal">
+                                                                                {% include 'sistemas/RPAS/parametrizacoes/cadastros/modals/modal_rda_del.html' %}
+                                                                            </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% block javascript %}
+{# INTERNAL Data tables js #}
+{% include "includes/cdnTables.html" %}
+<script>
+$(function(e) {
+    $('#pessoafisica-table').DataTable({
+        "order": [
+            [0, "desc"]
+        ],
+        order: [],
+        columnDefs: [{ orderable: false, targets: [0, 8] }],
+        language: {
+            decimal: '',
+            searchPlaceholder: 'Procurar...',
+            sSearch: '',
+            lengthMenu: "Mostrando _MENU_ pessoas física por página",
+            zeroRecords: "Nenhuma pessoa física encontrada, desculpe!",
+            info: "Mostrando página _PAGE_ de _PAGES_",
+            infoEmpty: "Nenhuma pessoa física encontrada, desculpe!",
+            infoFiltered: "(Filtrando de _MAX_ pessoas físicas totais)",
+            "paginate": {
+                first:      "Primeiro",
+                last:       "Último",
+                next:       "Próximo",
+                previous:   "Anterior"
+            },
+            "aria": {
+                "sortAscending":  ": ordenar de forma ascendente",
+                "sortDescending": ": ordenar de forma decrescente"
+            },
+        }
+    });
+
+    $('.dataTables_length select').select2({
+        minimumResultsForSearch: Infinity
+    });
+});
+</script>
+<script>
+function setInnerHTML(elm, html) {
+  elm.innerHTML = html;
+
+  Array.from(elm.querySelectorAll("script"))
+    .forEach( oldScriptEl => {
+      const newScriptEl = document.createElement("script");
+
+      Array.from(oldScriptEl.attributes).forEach( attr => {
+        newScriptEl.setAttribute(attr.name, attr.value)
+      });
+
+      const scriptText = document.createTextNode(oldScriptEl.innerHTML);
+      newScriptEl.appendChild(scriptText);
+
+      oldScriptEl.parentNode.replaceChild(newScriptEl, oldScriptEl);
+  });
+}
+
+function refreshScriptModal() {
+    var forms = document.getElementsByClassName('needs-validation');
+    var validation = Array.prototype.filter.call(forms, function(form) {
+    form.addEventListener('submit', function(event) {
+      if (form.checkValidity() === false) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false);
+    });
+    $('.form-group select').select2({
+      minimumResultsForSearch: Infinity
+    });
+    $('.modal-effect').on('click', function (e) {
+        e.preventDefault();
+        var effect = $(this).attr('data-bs-effect');
+        $('.modal').addClass(effect);
+    });
+    $('.modal').on('hidden.bs.modal', function (e) {
+        $(this).removeClass(function (index, className) {
+            return (className.match(/(^|\s)effect-\S+/g) || []).join(' ');
+        });
+    });
+};
+
+function fetchEdit(id) {
+    const editModal = document.getElementById("editModal");
+    event.preventDefault();
+    var userData = [id]
+    var jsonData = userData;
+    var xhr = new XMLHttpRequest();
+    var content = {};
+    xhr.open("POST", "/fetchEditFisica", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("x-csrf-token", "{{ csrf_token() }}");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                content.title = xhr.getResponseHeader('title');
+                content.message = xhr.getResponseHeader('message');
+                content.style = xhr.getResponseHeader('style');
+            } else {
+                content.title = 'Conexão perdida!';
+                content.message = 'Não foi possivel estabelecer conexão.';
+                content.style = 'warning1';
+            };
+            $.growl({
+              title: content.title,
+              style: content.style,
+              message: content.message,
+              namespace: 'growl',
+              duration: 2000,
+              close: "&#215;",
+              location: "default",
+              size: "large",
+              delayOnHover: true
+            });
+        }
+        setInnerHTML(editModal, xhr.response)
+        refreshScriptModal()
+    };
+    xhr.send(JSON.stringify(jsonData));
+};
+
+function fetchDel(id) {
+    const delModal = document.getElementById("delModal");
+    event.preventDefault();
+    var userData = [id]
+    var jsonData = userData;
+    var xhr = new XMLHttpRequest();
+    var content = {};
+    xhr.open("POST", "/fetchDelFisica", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("x-csrf-token", "{{ csrf_token() }}");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                content.title = xhr.getResponseHeader('title');
+                content.message = xhr.getResponseHeader('message');
+                content.style = xhr.getResponseHeader('style');
+            } else {
+                content.title = 'Conexão perdida!';
+                content.message = 'Não foi possivel estabelecer conexão.';
+                content.style = 'warning1';
+            };
+            $.growl({
+              title: content.title,
+              style: content.style,
+              message: content.message,
+              namespace: 'growl',
+              duration: 2000,
+              close: "&#215;",
+              location: "default",
+              size: "large",
+              delayOnHover: true
+            });
+        }
+        setInnerHTML(delModal, xhr.response)
+        refreshScriptModal()
+    };
+    xhr.send(JSON.stringify(jsonData));
+};
+</script>
+<script>
+if ( window.history.replaceState ) {
+  window.history.replaceState( null, null, window.location.href );
+}
+</script>
+{% endblock javascript %}
+{% endblock content %}

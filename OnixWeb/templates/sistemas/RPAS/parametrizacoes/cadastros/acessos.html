@@ -1,0 +1,236 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Acessos {% endblock %}
+
+{% block content %}
+<div class="main-container container-fluid">
+    <div class="row mt-8">
+        <div class="page-header">
+            <h1 class="page-title">Acessos</h1>
+            <div>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index">Início</a></li>
+                    <li class="breadcrumb-item active">Acessos</li>
+                </ol>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-xl-4">
+                <div class="card">
+                    <div class="card-header p-2" style="display: flex !important; justify-content: center; !important">
+                        <img style="width:80px; align:center;" alt="{{Empresa.nome}}" src="data:image/png;base64, {{Empresa.base64logo}}" >
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-5">
+                            <h5 class="mb-1 text-dark fw-semibold">{{Empresa.nome}}</h5>
+                            <p class="text-muted mt-0 mb-0 pt-0 fs-13">CNPJ: {{Empresa.cnpj}}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Senha Atual</label>
+                            <div class="wrap-input100 validate-input input-group" id="showPasswordEmp">
+                                <a href="javascript:void(0)" class="input-group-text bg-white text-muted">
+                                    <i class="zmdi zmdi-eye text-muted" aria-hidden="true"></i>
+                                </a>
+                                <input class="form-control" type="password" value="{{Empresa.chave_acesso}}" disabled>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <a class="btn btn-secondary" id="altPassEmp" ><b>Alterar Senha</b></a>
+                        </div>
+
+                        <div  id="toggleSenhaEmp" style="display:none;">
+                             <div class="text-center">
+                                <b>Alterar Senha</b>
+                            </div>
+                            <form style="padding: 0;border: none;background: none;"  method="POST" action="">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                                <div class="form-group">
+                                    <label class="form-label">Nova Senha</label>
+                                    <div class="input-group" id="showPasswordEmp1">
+                                        <a class="input-group-text bg-white text-muted">
+                                            <i class="zmdi zmdi-eye text-muted" aria-hidden="true"></i>
+                                        </a>
+                                        <input class="form-control" type="password" id="newPassEmp1" name="newPassEmp1" required>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Confirmar Nova Senha</label>
+                                    <div class="input-group" id="showPasswordEmp2">
+                                        <a class="input-group-text bg-white text-muted">
+                                            <i class="zmdi zmdi-eye text-muted" aria-hidden="true"></i>
+                                        </a>
+                                        <input class="form-control" type="password" id="newPassEmp2" name="newPassEmp2" required>
+                                    </div>
+                                </div>
+                                <div class="card-footer text-end">
+                                    <button class="btn btn-primary m-1" type="submit" role="button" name="altPasswordEmpresa">Confirmar</button>
+                                    <a class="btn btn-warning m-1" id="altPassEmp2" type="button" role="button">Cancelar</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <div class="col-xl-4" >
+                <div class="card">
+                    <div class="card-header p-2" style="display: flex !important; justify-content: center; !important">
+                        <img alt="Sefaz - Acesso Web" style="width:180px; align:center;" src="../static/assets/images/brand/acessowebSefaz.png" >
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-5">
+                            <h5 class="mb-1 text-dark fw-semibold">CONTABILISTA</h5>
+                            <p class="text-muted mt-0 mb-0 pt-0 fs-13">Usuário: {{Empresa.login_contabilista}}</p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Senha Atual</label>
+                            <div class="wrap-input100 validate-input input-group" id="showPassword">
+                                <a href="javascript:void(0)" class="input-group-text bg-white text-muted">
+                                    <i class="zmdi zmdi-eye text-muted" aria-hidden="true"></i>
+                                </a>
+                                <input class="form-control" type="password" value="{{Empresa.senha_contabilista}}" disabled>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <a class="btn btn-secondary" id="altPassContabilista" ><b>Alterar Senha</b></a>
+                        </div>
+
+                        <div  id="toggleSenha" style="display:none;">
+                             <div class="text-center">
+                                <b>Alterar Senha</b>
+                            </div>
+                            <form style="padding: 0;border: none;background: none;"  method="POST" action="">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                                <div class="form-group">
+                                    <label class="form-label">Nova Senha</label>
+                                    <div class="input-group" id="showPassword1">
+                                        <a class="input-group-text bg-white text-muted">
+                                            <i class="zmdi zmdi-eye text-muted" aria-hidden="true"></i>
+                                        </a>
+                                        <input class="form-control" type="password" id="newPassContabilista1" name="newPassContabilista1" required>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Confirmar Nova Senha</label>
+                                    <div class="input-group" id="showPassword2">
+                                        <a class="input-group-text bg-white text-muted">
+                                            <i class="zmdi zmdi-eye text-muted" aria-hidden="true"></i>
+                                        </a>
+                                        <input class="form-control" type="password" id="newPassContabilista2" name="newPassContabilista2" required>
+                                    </div>
+                                </div>
+                                <div class="card-footer text-end">
+                                    <button class="btn btn-primary m-1" type="submit" role="button" name="altPasswordContabilista">Confirmar</button>
+                                    <a class="btn btn-warning m-1" id="altPassContabilista2" type="button" role="button">Cancelar</a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% block javascript %}
+<script src="https://unpkg.com/imask"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+//IMask(
+//  document.getElementById('cnpjInput'),
+//  {
+//    mask: '00.000.000/0000-00'
+//  }
+//)
+
+$("#showPassword a").on('click', function(event) {
+    event.preventDefault();
+    if ($('#showPassword input').attr("type") == "text") {
+        $('#showPassword input').attr('type', 'password');
+    } else if ($('#showPassword input').attr("type") == "password") {
+        $('#showPassword input').attr('type', 'text');
+    }
+});
+
+$("#showPassword1 a").on('click', function(event) {
+    event.preventDefault();
+    if ($('#showPassword1 input').attr("type") == "text") {
+        $('#showPassword1 input').attr('type', 'password');
+    } else if ($('#showPassword1 input').attr("type") == "password") {
+        $('#showPassword1 input').attr('type', 'text');
+    }
+});
+
+$("#showPassword2 a").on('click', function(event) {
+    event.preventDefault();
+    if ($('#showPassword2 input').attr("type") == "text") {
+        $('#showPassword2 input').attr('type', 'password');
+    } else if ($('#showPassword2 input').attr("type") == "password") {
+        $('#showPassword2 input').attr('type', 'text');
+    }
+});
+
+document.getElementById('altPassContabilista').addEventListener('click', function() {
+    document.getElementById('altPassContabilista').style.display = 'none';
+    document.getElementById('toggleSenha').style.display = 'block';
+});
+
+document.getElementById('altPassContabilista2').addEventListener('click', function() {
+    document.getElementById('altPassContabilista').style.display = 'inline-block';
+    document.getElementById('toggleSenha').style.display = 'none';
+    document.getElementById('newPassContabilista1').value = '';
+    document.getElementById('newPassContabilista2').value = '';
+});
+
+
+
+$("#showPasswordEmp a").on('click', function(event) {
+    event.preventDefault();
+    if ($('#showPasswordEmp input').attr("type") == "text") {
+        $('#showPasswordEmp input').attr('type', 'password');
+    } else if ($('#showPasswordEmp input').attr("type") == "password") {
+        $('#showPasswordEmp input').attr('type', 'text');
+    }
+});
+
+$("#showPasswordEmp1 a").on('click', function(event) {
+    event.preventDefault();
+    if ($('#showPasswordEmp1 input').attr("type") == "text") {
+        $('#showPasswordEmp1 input').attr('type', 'password');
+    } else if ($('#showPasswordEmp1 input').attr("type") == "password") {
+        $('#showPasswordEmp1 input').attr('type', 'text');
+    }
+});
+
+$("#showPasswordEmp2 a").on('click', function(event) {
+    event.preventDefault();
+    if ($('#showPasswordEmp2 input').attr("type") == "text") {
+        $('#showPasswordEmp2 input').attr('type', 'password');
+    } else if ($('#showPasswordEmp2 input').attr("type") == "password") {
+        $('#showPasswordEmp2 input').attr('type', 'text');
+    }
+});
+
+
+document.getElementById('altPassEmp').addEventListener('click', function() {
+    document.getElementById('altPassEmp').style.display = 'none';
+    document.getElementById('toggleSenhaEmp').style.display = 'block';
+});
+
+document.getElementById('altPassEmp2').addEventListener('click', function() {
+    document.getElementById('altPassEmp').style.display = 'inline-block';
+    document.getElementById('toggleSenhaEmp').style.display = 'none';
+    document.getElementById('newPassEmp1').value = '';
+    document.getElementById('newPassEmp2').value = '';
+});
+
+
+if ( window.history.replaceState ) {
+  window.history.replaceState( null, null, window.location.href );
+}
+</script>
+
+{% endblock javascript %}
+
+{% endblock content %}

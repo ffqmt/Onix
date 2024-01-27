@@ -1,0 +1,78 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Login {% endblock %}
+
+{% block content %}
+<div class="col col-login mx-auto mt-7">
+    <div class="text-center">
+        <a href="index.html"><img src="../assets/images/brand/logo-white.png" class="header-brand-img m-0" alt=""></a>
+    </div>
+</div>
+<div class="container-loginonix">
+    <div class="wrap-loginonix p-6">
+        <form class="loginonix-form validate-form">
+            <span class="loginonix-form-title">
+                    Registration
+                </span>
+            <div class="wrap-inputonix validate-input input-group" data-bs-validate="Valid email is required: ex@abc.xyz">
+                <a href="javascript:void(0)" class="input-group-text bg-white text-muted">
+                    <i class="mdi mdi-account" aria-hidden="true"></i>
+                </a>
+                <input class="inputonix border-start-0 ms-0 form-control" type="text" placeholder="User name">
+            </div>
+            <div class="wrap-inputonix validate-input input-group" data-bs-validate="Valid email is required: ex@abc.xyz">
+                <a href="javascript:void(0)" class="input-group-text bg-white text-muted">
+                    <i class="zmdi zmdi-email" aria-hidden="true"></i>
+                </a>
+                <input class="inputonix border-start-0 ms-0 form-control" type="email" placeholder="Email">
+            </div>
+            <div class="wrap-inputonix validate-input input-group" id="Password-toggle">
+                <a href="javascript:void(0)" class="input-group-text bg-white text-muted">
+                    <i class="zmdi zmdi-eye" aria-hidden="true"></i>
+                </a>
+                <input class="inputonix border-start-0 ms-0 form-control" type="password" placeholder="Password">
+            </div>
+            <label class="custom-control custom-checkbox mt-4">
+                    <input type="checkbox" class="custom-control-input">
+                    <span class="custom-control-label">Agree the <a href="terms.html">terms and policy</a></span>
+                </label>
+            <div class="container-loginonix-form-btn">
+                <a href="index.html" class="loginonix-form-btn btn-primary">
+                        Register
+                    </a>
+            </div>
+            <div class="text-center pt-3">
+                <p class="text-dark mb-0">Already have account?<a href="login.html" class="text-primary ms-1">Sign In</a></p>
+            </div>
+            <label class="login-social-icon"><span>Register with Social</span></label>
+            <div class="d-flex justify-content-center">
+                <a href="javascript:void(0)">
+                    <div class="social-login me-4 text-center">
+                        <i class="fa fa-google"></i>
+                    </div>
+                </a>
+                <a href="javascript:void(0)">
+                    <div class="social-login me-4 text-center">
+                        <i class="fa fa-facebook"></i>
+                    </div>
+                </a>
+                <a href="javascript:void(0)">
+                    <div class="social-login text-center">
+                        <i class="fa fa-twitter"></i>
+                    </div>
+                </a>
+            </div>
+        </form>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+            <input name="username" value="PATRICKROSSATTO">
+            <input name="realname" value="Patrick Rossatto">
+            <input name="password" value="Mega@497091">
+            <input name="cnpj_empresa" value="49665869000144">
+            <input name="setor" value="Owner">
+            <input name="admin" value="1">
+            <button role="button" type="submit" name="register">criar primeiro usuario</button>
+        </form>
+    </div>
+</div>
+{% endblock content %}

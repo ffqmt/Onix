@@ -1,0 +1,189 @@
+<form method="POST" class="needs-validation" novalidate>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+<div class="modal-dialog modal-dialog-centered text-center modal-lg" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h6 class="modal-title">Novo Cadastro - {% if 'pessoajuridica' in segment %}Pessoa Jurídica{% elif 'pessoafisica' in segment %}Pessoa Física{%endif%}</h6>
+            <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" role="button" type="button"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="col-xl-12 col-md-12 col-12">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="col-xl-8 col-md-8 col-8" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">Ativa</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_active" name="active" type="checkbox"/>
+                                <label for="newcad_active" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="col-xl-8 col-md-8 col-8" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">Rotina Mensal</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_active_mensal" name="active_mensal" type="checkbox"/>
+                                <label for="newcad_active_mensal" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-8 col-md-8 col-8" style="margin:auto!important; margin-top:2rem !important;">
+                    <div class="form-group">
+                        <div class="input-group">
+                            <span class="input-group-text col-2">Nome</span>
+                            <input type="text" class="form-control" name="name" id="newcad_name" value="" required>
+                            <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, informe um nome!</b></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="input-group">
+                            <span class="input-group-text col-2">{% if 'pessoajuridica' in segment %}CNPJ{% elif 'pessoafisica' in segment %}CPF{%endif%}</span>
+                            <input type="text" class="form-control" minlength="{% if 'pessoajuridica' in segment %}18{% elif 'pessoafisica' in segment %}14{%endif%}" name="cnpj_cpf" id="newcad_cnpj_cpf" value="" required>
+                            <div class="invalid-feedback" style="font-size:0.75rem;"><b>{% if 'pessoajuridica' in segment %}O CNPJ precisa conter 14 dígitos.{% elif 'pessoafisica' in segment %}O CPF precisa conter 11 dígitos.{%endif%}</b></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="input-group">
+                            <span class="input-group-text col-2">IE</span>
+                            <input type="text" class="form-control" name="ie" id="newcad_ie" value="">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="input-group">
+                            <span class="input-group-text col-2">Senha</span>
+                            <input type="text" class="form-control" name="password" id="newcad_password" value="">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-8 col-md-8 col-8" style="margin:auto!important; margin-top:2rem !important;">
+                    <div class="form-group">
+                        <label class="form-label fw-bold">Cidade</label>
+                        <select style="width:80% !important;" id="newcad_city" name="city" class="form-control form-select select2" data-bs-placeholder="Selecione a cidade" required>
+                                <option value=""></option>
+                                {% for city in listCity() %}
+                                <option value="{{city.id}}">{{city.name}}</option>
+                                {% endfor %}
+                        </select>
+                        <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, selecione uma cidade!</b></div>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Prefeitura</label>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">Encerramento Tomado</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_pref_enc_tomado" name="pref_enc_tomado" type="checkbox"/>
+                                <label for="newcad_pref_enc_tomado" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">Encerramento Prestado</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_pref_enc_prestado" name="pref_enc_prestado" type="checkbox"/>
+                                <label for="newcad_pref_enc_prestado" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">Guia ISSQN</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_pref_guia_issqn" name="pref_guia_issqn" type="checkbox"/>
+                                <label for="newcad_pref_guia_issqn" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">Relatório Tomado</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_pref_rel_tomado" name="pref_rel_tomado" type="checkbox"/>
+                                <label for="newcad_pref_rel_tomado" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">Relatório Prestado</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_pref_rel_prestado" name="pref_rel_prestado" type="checkbox"/>
+                                <label for="newcad_pref_rel_prestado" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">NFe Tomado</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_pref_nfe_tomado" name="pref_nfe_tomado" type="checkbox"/>
+                                <label for="newcad_pref_nfe_tomado" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">NFe Prestado</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_pref_nfe_prestado" name="pref_nfe_prestado" type="checkbox"/>
+                                <label for="newcad_pref_nfe_prestado" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Sefaz</label>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">NFe Saída</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_sefaz_nfe_saida" name="sefaz_nfe_saida" type="checkbox"/>
+                                <label for="newcad_sefaz_nfe_saida" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">NFe Entrada</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_sefaz_nfe_entrada" name="sefaz_nfe_entrada" type="checkbox"/>
+                                <label for="newcad_sefaz_nfe_entrada" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">CTe Emitido</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_sefaz_cte_emitido" name="sefaz_cte_emitido" type="checkbox"/>
+                                <label for="newcad_sefaz_cte_emitido" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">CTe Tomado</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_sefaz_cte_tomado" name="sefaz_cte_tomado" type="checkbox"/>
+                                <label for="newcad_sefaz_cte_tomado" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                        <div class="col-xl-8 col-md-8 col-8 mt-4" style="margin-right:auto!important">
+                            <label style="text-align: left !important;">NFCe Emitida</label>
+                            <div class="material-switch pull-right  mt-1">
+                                <input id="newcad_sefaz_nfce" name="sefaz_nfce" type="checkbox"/>
+                                <label for="newcad_sefaz_nfce" class="label-success" style="width:0px !important;"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-info" role="button" name="addCadastro" type="submit">Adicionar Cadastro</button>
+            <button class="btn btn-light" data-bs-dismiss="modal" role="button" type="button">Fechar</button>
+        </div>
+    </div>
+</div>
+</form>
+<script src="https://unpkg.com/imask"></script>
+<script>
+{% if 'pessoajuridica' in segment %}
+IMask(
+  document.getElementById('newcad_cnpj_cpf'),
+  {
+    mask: '00.000.000/0000-00'
+  }
+)
+{% elif 'pessoafisica' in segment %}
+IMask(
+  document.getElementById('newcad_cnpj_cpf'),
+  {
+    mask: '000.000.000-00'
+  }
+)
+{%endif%}
+</script>

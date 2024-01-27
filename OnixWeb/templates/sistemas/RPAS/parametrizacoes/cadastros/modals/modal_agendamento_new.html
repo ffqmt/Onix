@@ -1,0 +1,246 @@
+
+<div class="modal-dialog modal-dialog-centered text-center modal-lg" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h6 class="modal-title">Novo Agendamento de RPA</h6>
+            <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" role="button" type="button"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="tab-menu-heading">
+                <ul class="nav panel-tabs" style="justify-content: center">
+                    <li><a href="#Sefaz" class="btn text-white bg-warning m-1 p-1" style="width:10rem; font-size:1rem; font-weight:bold;" data-bs-toggle="tab">Sefaz</a></li>
+                    <li><a href="#Prefeitura" class="btn text-white bg-info m-1 p-1" style="width:10rem; font-size:1rem; font-weight:bold;" data-bs-toggle="tab">Prefeitura</a></li>
+                </ul>
+            </div>
+            <div class="tab-content main-chat-list flex-2">
+                <div class="tab-pane" id="Sefaz">
+                    <form method="POST" id="formSefaz" class="needs-validation" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                        <div class="align-items-center " style="margin:auto !important; margin-top:1rem !important;">
+                            <input name="tipo_agendamento" value="SEFAZ" hidden>
+                            <div class="row" style="justify-content:center !important;">
+                                <div class="col-xl-8 col-md-8 col-12" >
+                                    <label class="form-label fw-bold">Data e Hora</label>
+                                    <input id="sefaz_data_agenda" name="data_agenda" value="" hidden>
+                                    <div id="sefaz_data_agenda_picker" style="margin:auto !important;"></div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-xl-6 col-md-6 col-12 mt-4">
+                                    <div class="form-group">
+                                        <label class="form-label fw-bold">Estado</label>
+                                        <select style="width:80% !important;" id="sefaz_cd_ufcidade_agendamento" name="cd_ufcidade_agendamento" class="form-control form-select select2" data-bs-placeholder="" required>
+                                            <option value=""></option>
+                                            {% for uf in UFTable() %}
+                                                {% if uf.active_sefaz %}
+                                                <option value="{{uf.id}}">{{uf.uf_desc}}</option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </select>
+                                        <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, selecione um estado!</b></div>
+                                    </div>
+                                </div>
+                                <div class="col-xl-6 col-md-6 col-12 mt-4">
+                                    <div class="form-group">
+                                        <label class="form-label fw-bold">Tipo de Pessoa</label>
+                                         <select style="width:80% !important;" id="sefaz_tipo_pessoa_agendamento" name="tipo_pessoa_agendamento" class="form-control form-select select2" data-bs-placeholder="" required>
+                                             <option value=""></option>
+                                             <option value="PJ"> Pessoa Jurídica</option>
+                                             <option value="PF"> Pessoa Física</option>
+                                        </select>
+                                        <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, selecione um tipo de pessoa!</b></div>
+                                    </div>
+                                </div>
+                             </div>
+                            <div class="row" style="justify-content: center !important">
+                                 <div class="col-xl-6 col-md-6 col-12">
+                                    <div class="form-group">
+                                        <label class="form-label fw-bold">Processos</label>
+                                         <select style="width:80% !important;" id="sefaz_processos_inclusos" name="processos_inclusos" class="form-control form-select select2" data-placeholder="" multiple required>
+                                             <option value="sefaz_nfe_saida"> NFe Saída.</option>
+                                             <option value="sefaz_nfe_entrada"> NFe Entrada.</option>
+                                             <option value="sefaz_cte_emitido"> CTe Emitido.</option>
+                                             <option value="sefaz_cte_tomado"> CTe Tomado.</option>
+                                             <option value="sefaz_nfce"> NFCe Emitida.</option>
+                                        </select>
+                                        <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, selecione ao menos um processo!</b></div>
+                                    </div>
+                                 </div>
+                             </div>
+                            <div class="row p-7" style="justify-content:left;">
+                                <div class="col-xl-4 col-md-4 col-12" >
+                                    <label style="text-align: left !important;">Repetir Mensalmente</label>
+                                    <div class="material-switch pull-right  mt-1">
+                                        <input id="sefaz_in_repeat" name="in_repeat" type="checkbox"/>
+                                        <label for="sefaz_in_repeat" class="label-success" style="width:0px !important;"></label>
+                                    </div>
+                                </div>
+                             </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-info" role="button" name="addAgendamento" type="submit">Adicionar Agendamento</button>
+                                <button class="btn btn-light" data-bs-dismiss="modal" role="button" type="button">Fechar</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="tab-pane" id="Prefeitura">
+                    <form method="POST" id="formPrefeitura" class="needs-validation" novalidate>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                    <div class="align-items-center " style="margin:auto !important; margin-top:1rem !important;">
+                        <input name="tipo_agendamento" value="PREFEITURA" hidden>
+                        <div class="row" style="justify-content:center !important;">
+                            <div class="col-xl-8 col-md-8 col-12" >
+                                <label class="form-label fw-bold">Data e Hora</label>
+                                <input id="prefeitura_data_agenda" name="data_agenda" value="" hidden>
+                                <div id="prefeitura_data_agenda_picker" style="margin:auto !important;"></div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-xl-6 col-md-6 col-12 mt-4">
+                                <div class="form-group">
+                                    <label class="form-label fw-bold">Cidade</label>
+                                    <select style="width:80% !important;" id="prefeitura_cd_ufcidade_agendamento" name="cd_ufcidade_agendamento" class="form-control form-select select2" data-bs-placeholder="" required>
+                                        <option value=""></option>
+                                         {% for city in CityTable() %}
+                                            {% if city.active_prefeituras %}
+                                            <option value="{{city.id}}">{{city.name}}</option>
+                                            {%endif%}
+                                         {% endfor %}
+                                    </select>
+                                    <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, selecione um estado!</b></div>
+                                </div>
+                            </div>
+                            <div class="col-xl-6 col-md-6 col-12 mt-4">
+                                <div class="form-group">
+                                    <label class="form-label fw-bold">Tipo de Pessoa</label>
+                                     <select style="width:80% !important;" id="prefeitura_tipo_pessoa_agendamento" name="tipo_pessoa_agendamento" class="form-control form-select select2" data-bs-placeholder="" required>
+                                         <option value=""></option>
+                                         <option value="PJ"> Pessoa Jurídica</option>
+                                         <option value="PF"> Pessoa Física</option>
+                                    </select>
+                                    <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, selecione um tipo de pessoa!</b></div>
+                                </div>
+                            </div>
+                         </div>
+                        <div class="row" style="justify-content: center !important">
+                             <div class="col-xl-6 col-md-6 col-12">
+                                <div class="form-group">
+                                    <label class="form-label fw-bold">Processos</label>
+                                     <select style="width:80% !important;" id="prefeitura_processos_inclusos" name="processos_inclusos" class="form-control form-select select2" data-placeholder="" multiple required>
+                                         <option value="pref_enc_tomado"> Encerramento Tomados</option>
+                                         <option value="pref_enc_prestado"> Encerramento Prestados</option>
+                                         <option value="pref_guia_issqn"> Guia ISSQN</option>
+                                         <option value="pref_rel_tomado"> Relatório Tomado</option>
+                                         <option value="pref_rel_prestado"> Relatório Prestado</option>
+                                         <option value="pref_nfe_tomado"> NFe Tomado</option>
+                                         <option value="pref_nfe_prestado"> NFe Prestado</option>
+                                    </select>
+                                    <div class="invalid-feedback" style="font-size:0.75rem;"><b>Por favor, selecione ao menos um processo!</b></div>
+                                </div>
+                             </div>
+                         </div>
+                        <div class="row p-7" style="justify-content:left;">
+                                <div class="col-xl-4 col-md-4 col-12" >
+                                    <label style="text-align: left !important;">Repetir Mensalmente</label>
+                                    <div class="material-switch pull-right  mt-1">
+                                        <input id="prefeitura_in_repeat" name="in_repeat" type="checkbox"/>
+                                        <label for="prefeitura_in_repeat" class="label-success" style="width:0px !important;"></label>
+                                    </div>
+                                </div>
+                             </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-info" role="button" name="addAgendamento" type="submit">Adicionar Agendamento</button>
+                            <button class="btn btn-light" data-bs-dismiss="modal" role="button" type="button">Fechar</button>
+                        </div>
+                    </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<link href="{{ url_for('static', filename='assets/plugins/datePickerOnix/date-time-picker-component.min.css') }}" rel="stylesheet">
+<script type="text/javascript" src="{{ url_for('static', filename='assets/plugins/datePickerOnix/date-time-picker-component.min.js') }}"></script>
+<script>
+    let ptbr = {
+  'jan':'Janeiro',
+  'feb':'Fevereiro',
+  'mar':'Março',
+  'apr':'Abril',
+  'may':'Maio',
+  'jun':'Junho',
+  'jul':'Julho',
+  'aug':'Agosto',
+  'sep':'Setembro',
+  'oct':'Outubro',
+  'nov':'Novembro',
+  'dec':'Dezembro',
+  'jan_':'Janeiro',
+  'feb_':'Fevereiro',
+  'mar_':'Março',
+  'apr_':'Abril',
+  'may_':'Maio',
+  'jun_':'Junho',
+  'jul_':'Julho',
+  'aug_':'Agosto',
+  'sep_':'Setembro',
+  'oct_':'Outubro',
+  'nov_':'Novembro',
+  'dec_':'Dezembro',
+  'mon':'Seg',
+  'tue':'Ter',
+  'wed':'Qua',
+  'thu':'Qui',
+  'fri':'Sex',
+  'sat':'Sab',
+  'sun':'Dom',
+  'mon_':'Segunda',
+  'tue_':'Terça',
+  'wed_':'Quarta',
+  'thu_':'Quinta',
+  'fri_':'Sexta',
+  'sat_':'Sabádo',
+  'sun_':'Domingo',
+  'done':'Feita'
+};
+
+
+new DateTimePickerComponent.DateTimePicker('sefaz_data_agenda_picker', {
+  first_date: new Date(),
+  start_date: new Date(),
+  styles: {
+    active_background: '#e0a325',
+    active_color: '#fff',
+    inactive_background: '#e0a325',
+    inactive_color: '#fff'
+  },
+  l10n: ptbr,
+});
+
+new DateTimePickerComponent.DateTimePicker('prefeitura_data_agenda_picker', {
+  first_date: new Date(),
+  start_date: new Date(),
+  styles: {
+    active_background: '#1eb0e2',
+    active_color: '#fff',
+    inactive_background: '#1eb0e2',
+    inactive_color: '#fff'
+  },
+  l10n: ptbr,
+});
+
+
+document.getElementById("formSefaz").addEventListener("submit", refreshDataAgendaSefaz);
+
+function refreshDataAgendaSefaz() {
+    document.getElementById("sefaz_data_agenda").value = document.getElementById("sefaz_data_agenda_picker_value").value;
+};
+
+document.getElementById("formPrefeitura").addEventListener("submit", refreshDataAgendaPrefeitura);
+
+function refreshDataAgendaPrefeitura() {
+    document.getElementById("prefeitura_data_agenda").value = document.getElementById("prefeitura_data_agenda_picker_value").value;
+};
+
+
+</script>

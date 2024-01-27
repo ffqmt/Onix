@@ -1,0 +1,66 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Login {% endblock %}
+
+{% block content %}
+    <div class="col col-login mx-auto mt-7">
+        <div class="text-center">
+            <a href="index"><img src="{{ url_for('static', filename='assets/images/brand/logo.png') }}" style="max-width:10rem;" class="header-brand-img" alt=""></a>
+        </div>
+    </div>
+    <div class="container-loginonix">
+            <div class="wrap-loginonix p-6">
+                <span class="loginonix-form-title pb-5">
+                    Identifique sua Empresa
+                </span>
+                <div class="panel panel-primary">
+                    <div class="tab-menu-heading">
+                        <div class="tabs-menu1">
+                            <ul class="nav panel-tabs" >
+                                <li class="mx-0"><a href="#tab6" data-bs-toggle="tab">Empresa</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="panel-body tabs-menu-body p-0 pt-5">
+                        <div class="tab-content">
+                            <div class="tab-pane active" id="tab6">
+                                <form style="padding: 0;border: none;background: none;"  method="POST" action="">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
+                                    <div id="mobile-num" class="wrap-inputonix input-group mb-4">
+                                        <div class="input-group-text bg-white text-muted" style="width:4rem;">
+                                            <span style="margin:auto;">CNPJ</span>
+                                        </div>
+                                        <input class="inputonix border-start-0 form-control ms-0 text-center" type="text" min="11" max="14" id="cnpjInput" name="cnpj" required>
+                                    </div>
+                                    <div class="wrap-inputonix validate-input input-group">
+                                        <div class="input-group-text bg-white text-muted" style="width:4rem;">
+                                            <i class="zmdi zmdi-key" style="margin:auto;" aria-hidden="true"></i>
+                                        </div>
+                                        <input class="inputonix border-start-0 form-control ms-0 text-center" type="password" name="chave_acesso" placeholder="Chave de Acesso" required>
+                                    </div>
+                                    <div class="container-loginonix-form-btn">
+                                        <button class="loginonix-form-btn btn-primary btn" type="submit" name="validateCnpj" role="button">
+                                            Entrar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+</div>
+{% block javascript %}
+<script src="https://unpkg.com/imask"></script>
+<script>
+IMask(
+  document.getElementById('cnpjInput'),
+  {
+    mask: '00.000.000/0000-00'
+  }
+)
+</script>
+{% endblock javascript %}
+
+{% endblock content %}
+
