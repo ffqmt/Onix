@@ -23,8 +23,6 @@ class Empresas(db.Model):
     autorizado_schedule = db.Column(db.Integer, default=0)
     receiver_ip = db.Column(db.String(64))
     receiver_port = db.Column(db.Integer)
-    receiver_path_pf = db.Column(db.String(120))
-    receiver_path_pj = db.Column(db.String(120))
 
     def __init__(self, **kwargs):
         for property, value in kwargs.items():
@@ -286,11 +284,13 @@ class AgendamentosRPA(db.Model):
     processos_inclusos = db.Column(db.String(400))
     tipo_pessoa_agendamento = db.Column(db.String(12))
     in_repeat = db.Column(db.Integer)
+    in_comp_atual = db.Column(db.Integer)
     status = db.Column(db.String(64))
     status_sender = db.Column(db.String(200))
     job_trigger = db.Column(db.String(64))
     job_data = db.Column(db.String(200))
     active = db.Column(db.Integer)
+    path_receiver = db.Column(db.String(200))
     # RELACOES
     empresa = db.relationship('Empresas')
     usuario = db.relationship('Users')

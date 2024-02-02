@@ -67,7 +67,15 @@
                                     </div>
                                  </div>
                              </div>
-                            <div class="row p-7" style="justify-content:left;">
+                            <div class="row p-4" style="justify-content:center; margin-top:3rem;">
+                                <div class="col-xl-12 col-md-12 col-12" >
+                                    <label style="text-align: left !important;"><b>Caminho da pasta destino (OnixWeb - Receiver)</b></label>
+                                    <div class="col">
+                                        <input id="sefaz_path_receiver" name="path_receiver" class="form-control mb-4" placeholder="Caminho da pasta dentro do servidor!" type="text">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row p-4" style="justify-content:left;">
                                 <div class="col-xl-4 col-md-4 col-12" >
                                     <label style="text-align: left !important;">Repetir Mensalmente</label>
                                     <div class="material-switch pull-right  mt-1">
@@ -76,6 +84,17 @@
                                     </div>
                                 </div>
                              </div>
+                            <div class="row p-4" style="justify-content:left;">
+                                <div class="col-xl-6 col-md-6 col-12" >
+                                    <label style="text-align: left !important;">Competência com base na data de Execução</label>
+                                    <div class="material-switch pull-right  mt-1">
+                                        <input id="sefaz_in_comp_atual" name="in_comp_atual" type="checkbox"/>
+                                        <label for="sefaz_in_comp_atual" class="label-success" style="width:0px !important;"></label>
+                                    </div>
+                                </div>
+                             </div>
+
+
                             <div class="modal-footer">
                                 <button class="btn btn-info" role="button" name="addAgendamento" type="submit">Adicionar Agendamento</button>
                                 <button class="btn btn-light" data-bs-dismiss="modal" role="button" type="button">Fechar</button>
@@ -139,15 +158,33 @@
                                 </div>
                              </div>
                          </div>
-                        <div class="row p-7" style="justify-content:left;">
-                                <div class="col-xl-4 col-md-4 col-12" >
-                                    <label style="text-align: left !important;">Repetir Mensalmente</label>
-                                    <div class="material-switch pull-right  mt-1">
-                                        <input id="prefeitura_in_repeat" name="in_repeat" type="checkbox"/>
-                                        <label for="prefeitura_in_repeat" class="label-success" style="width:0px !important;"></label>
-                                    </div>
+                        <div class="row p-4" style="justify-content:center; margin-top:3rem;">
+                            <div class="col-xl-12 col-md-12 col-12" >
+                                <label style="text-align: left !important;"><b>Caminho da pasta destino (OnixWeb - Receiver)</b></label>
+                                <div class="col">
+                                    <input id="prefeitura_path_receiver" name="path_receiver" class="form-control mb-4" placeholder="Caminho da pasta dentro do servidor!" type="text">
                                 </div>
-                             </div>
+                            </div>
+                        </div>
+                        <div class="row p-4" style="justify-content:left;">
+                            <div class="col-xl-4 col-md-4 col-12" >
+                                <label style="text-align: left !important;">Repetir Mensalmente</label>
+                                <div class="material-switch pull-right  mt-1">
+                                    <input id="prefeitura_in_repeat" name="in_repeat" type="checkbox"/>
+                                    <label for="prefeitura_in_repeat" class="label-success" style="width:0px !important;"></label>
+                                </div>
+                            </div>
+                         </div>
+                        <div class="row p-4" style="justify-content:left;">
+                            <div class="col-xl-6 col-md-6 col-12" >
+                                <label style="text-align: left !important;">Competência com base na data de Execução</label>
+                                <div class="material-switch pull-right  mt-1">
+                                    <input id="prefeitura_in_comp_atual" name="in_comp_atual" type="checkbox"/>
+                                    <label for="prefeitura_in_comp_atual" class="label-success" style="width:0px !important;"></label>
+                                </div>
+                            </div>
+                         </div>
+
                         <div class="modal-footer">
                             <button class="btn btn-info" role="button" name="addAgendamento" type="submit">Adicionar Agendamento</button>
                             <button class="btn btn-light" data-bs-dismiss="modal" role="button" type="button">Fechar</button>

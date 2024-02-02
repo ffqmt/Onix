@@ -1,8 +1,10 @@
 import socket
 import os
+from OnixWeb.addons.appscontext import *
+from OnixWeb.addons.models import AgendamentosRPA
 
 
-def SendRPAData(zip_file_path, host, porta, pasta_destino_receiver):
+def SendRPAData(id_agendamento, zip_file_path, host, porta, pasta_destino_receiver):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
         try:
             client_socket.connect((host, porta))
@@ -36,17 +38,19 @@ def SendRPAData(zip_file_path, host, porta, pasta_destino_receiver):
             # Aguarda a resposta do servidor
             resposta_servidor = client_socket.recv(1024).decode()
             print(resposta_servidor)
-            return resposta_servidor
 
         except Exception as e:
-            msg = f"Erro ao enviar arquivo ZIP: {e}"
-            print(msg)
-            return msg
+            resposta_servidor = f"Erro ao enviar arquivo ZIP: {e}"
+            print(resposta_servidor)
 
         finally:
             # Fecha explicitamente a conexão
             client_socket.close()
 
+        with app.app_context():
+            dadosAgendamento = AgendamentosRPA.query.filter_by(id=id_agendamento).first()
+            dadosAgendamento.status_sender = resposta_servidor
+            db.session.commit()
 
 # if __name__ == "__main__":
 #     host_servidor = '191.223.125.126'  # substitua pelo endereço IP ou nome de host do Computador 2

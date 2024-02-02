@@ -15,15 +15,26 @@
                         {% for job in SchedulerJobs %}
                            <div class="card">
                            {% set dados_ag = dadosAgendamento(job.id) %}
-                            ----------------------------<br>
-                            Empresa: {{dados_ag.empresa.nome}}<br>
-                            ID: {{job.id}}<br>
-                            FunçãoExecutada: {{job.name}}<br>
-                            Proxima Exec: {{job.next_run_time}}<br>
-                            Args: {{job.args}}<br>
-                            Kwargs : {{job.kwargs}}<br>
-                            ----------------------------<br>
-                            </div>
+                               {% if dados_ag %}
+                                ----------------------------<br>
+                                Empresa: {{dados_ag.empresa.nome}}<br>
+                                ID: {{job.id}}<br>
+                                FunçãoExecutada: {{job.name}}<br>
+                                Proxima Exec: {{job.next_run_time}}<br>
+                                Args: {{job.args}}<br>
+                                Kwargs : {{job.kwargs}}<br>
+                                ----------------------------<br>
+                                </div>
+                                {% else %}
+                                ----------------------------<br>
+                                Empresa: 'PADRAO ONIXSOLUTIONS'<br>
+                                ID: {{job.id}}<br>
+                                FunçãoExecutada: {{job.name}}<br>
+                                Proxima Exec: {{job.next_run_time}}<br>
+                                Args: {{job.args}}<br>
+                                Kwargs : {{job.kwargs}}<br>
+                                ----------------------------<br>
+                                {% endif %}
                         {% endfor %}
 
                         </div>

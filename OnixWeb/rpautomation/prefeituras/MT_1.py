@@ -27,7 +27,7 @@ from OnixWeb.addons.appscontext import *
 from webdriver_auto_update.webdriver_auto_update import WebdriverAutoUpdate
 
 from OnixWeb.addons.models import PessoaJuridica, logData, ThreadingCounter, PessoaFisica, AgendamentosRPA, Empresas
-from OnixWeb.addons.util import log_message, verify_downloaded
+from OnixWeb.addons.util import log_message, verify_downloaded, limpar_pasta
 
 root_path = os.path.abspath('')
 
@@ -74,7 +74,6 @@ def checkParamPadrao(TipoPessoa, idPessoa):
 
 
 def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -141,6 +140,9 @@ def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec
             if listaParametros['nfe_provided']:
                 exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
 
+            sleep(1)
+            limpar_pasta(pastaArquivos)
+
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
         includeLogData(nome_thread,
@@ -181,7 +183,6 @@ def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec
 
 
 def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -241,6 +242,8 @@ def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
             if listaParametros['nfe_provided']:
                 exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
 
+            sleep(1)
+            limpar_pasta(pastaArquivos)
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
         includeLogData(nome_thread,
@@ -281,7 +284,6 @@ def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
 
 
 def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -349,6 +351,9 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
             if listaParametros['nfe_provided']:
                 exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
 
+            sleep(1)
+            limpar_pasta(pastaArquivos)
+
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
         includeLogData(nome_thread,
@@ -389,7 +394,6 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
 
 
 def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -450,6 +454,9 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
             if listaParametros['nfe_provided']:
                 exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
 
+            sleep(1)
+            limpar_pasta(pastaArquivos)
+
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
         includeLogData(nome_thread,
@@ -490,7 +497,6 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
 
 
 def MainExecution_Agendamentos(idAgendamento, idCidade):
-    AtualizarChromeDriver()
     with app.app_context():
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
         dadosAgendamento.status = 'Em Execução'
@@ -512,12 +518,17 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
             listaPessoas.append(pessoa.id)
         EmpresaExec = dadosAgendamento.id_empresa
         DataExecucao = datetime.now()
-        if DataExecucao.month == 1:
-            MesExecucao = 12
-            AnoExecucao = DataExecucao.year - 1
-        else:
-            MesExecucao = DataExecucao.month - 1
+
+        if dadosAgendamento.in_comp_atual:
+            MesExecucao = DataExecucao.month
             AnoExecucao = DataExecucao.year
+        else:
+            if DataExecucao.month == 1:
+                MesExecucao = 12
+                AnoExecucao = DataExecucao.year - 1
+            else:
+                MesExecucao = DataExecucao.month - 1
+                AnoExecucao = DataExecucao.year
 
         thread_atual = threading.current_thread()
         nome_thread = thread_atual.name
@@ -581,7 +592,8 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
 
             '########## INICIA O DRIVER E CONFIGURA PARA CADA EXECUÇÃO ##########'
             driver = IniciarDriver()
-            driver.execute_cdp_cmd('Page.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+            driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
             '########## REALIZA O LOGIN ###########'
             logado = exec_LOGIN(driver, nome_thread, name_company, username, username, password, pastaArquivos)
@@ -606,6 +618,9 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
                     exec_NFSE_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
                 if listaParametros['nfe_provided'] and 'pref_nfe_prestado' in ParametrosAgendamento:
                     exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+
+                sleep(1)
+                limpar_pasta(pastaArquivos)
 
             '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
@@ -651,23 +666,29 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
             dadosAgendamento.status = 'Execução Finalizada'
         db.session.commit()
 
-        sleep(10)
+        print(f'Finalizou Execução do item agendado. (ID:{dadosAgendamento.id})')
+        sleep(5)
+        print('Iniciando envio dos arquivos do agendamento.')
+        sleep(5)
 
         '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
         DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
         if DadosEmpresaEnvio.autorizado_schedule:
-            if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
-                pathEnvio = DadosEmpresaEnvio.receiver_path_pj
-            elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
-                pathEnvio = DadosEmpresaEnvio.receiver_path_pf
 
+            pathEnvio = dadosAgendamento.path_receiver
             receiver_ip = DadosEmpresaEnvio.receiver_ip
             receiver_port = DadosEmpresaEnvio.receiver_port
             zipData = os.path.join(root_path, fr"OnixWeb\rpautomation\transactionFiles\{nome_thread}.zip")
 
-            SendRPADataResponse = SendRPAData(zipData, receiver_ip, receiver_port, pathEnvio)
-            dadosAgendamento.status_sender = SendRPADataResponse
-            db.session.commit()
+            print('Iniciando envio para:')
+            print(f'IP: {receiver_ip}')
+            print(f'Porta: {receiver_port}')
+            print(f'zipDataPath: {zipData}')
+            print(f'ReceiverPath: {pathEnvio}')
+            SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_port, pathEnvio)
+
+            print('Envio Finalizado!')
+
 
 def dadosPessoasPF(listaPessoas, EmpresaExec):
     with app.app_context():
@@ -711,18 +732,10 @@ def dadosPessoasPJ(listaPessoas, EmpresaExec):
     return dadospessoas
 
 
-def AtualizarChromeDriver():
-    try:
-        chromedriverpath = os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver")
-        WebdriverAutoUpdate(chromedriverpath).check_driver()
-    except Exception as e:
-        print(e, 'Erro ao atualizar Chromedriver!')
-
-
 def IniciarDriver():
     service = Service(os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver\chromedriver.exe"))
     chrome_options = Options()
-    chrome_options.add_argument('--headless')
+    # chrome_options.add_argument('--headless')
     chrome_options.add_argument('--window-size=1080,900')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -751,7 +764,10 @@ def exec_LOGIN(driver, nome_thread, name_company, cnpj_cpf, username, password, 
             EC.presence_of_element_located((By.XPATH, '//*[@id="_USUARIOLOGINLOGIN"]')))
         campo_login.send_keys(username)
         sleep(0.5)
-        campo_login.send_keys(Keys.ENTER)
+        Entrar = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="TBLOGIN"]/tbody/tr[4]/td/p/a')))
+        Entrar.click()
+        # campo_login.send_keys(Keys.ENTER)
         try:
             campo_senha = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, '//*[@id="_USUARIOLOGINSENHA"]')))
@@ -864,6 +880,14 @@ def exec_PDF_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execA
         filtroYear.select_by_visible_text(f"{ano}")
         sleep(0.5)
 
+        campoTipo = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(
+                (By.XPATH, f'//*[@id="TABLE1"]/tbody/tr[5]/td[2]/select')))
+
+        selectTipo = Select(campoTipo)
+        selectTipo.select_by_visible_text(f"Ambas")
+        sleep(0.5)
+
         WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(
                 (By.XPATH, f'//*[@id="IMGIMPRIMIR"]'))).click()
@@ -873,7 +897,7 @@ def exec_PDF_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execA
                 EC.presence_of_element_located(
                     (By.XPATH, '//*[@id="open-button"]'))).click()
         except Exception as e:
-            print('Clicou para baixar Tomados relatorio 2, com except.')
+            "print('Clicou para baixar Tomados relatorio 2, com except.')"
 
         pdf = os.path.join(pastaArquivos, 'orelnotastomadas.pdf')
         downloaded = False
@@ -1064,7 +1088,7 @@ def exec_PDF_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, exe
                     EC.presence_of_element_located(
                         (By.XPATH, '//*[@id="open-button"]'))).click()
             except Exception as e:
-                print('Clicou para baixar Prestados, com except.')
+                "print('Clicou para baixar Prestados, com except.')"
 
         if not cnpjbaixado:
             pdf = os.path.join(pastaArquivos, 'orellivroservico.pdf')
@@ -1296,6 +1320,8 @@ def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno
 
         WebDriverWait(driver, 5).until(EC.presence_of_element_located(
             (By.XPATH, '//*[@id="W0010_DATAVENCIMENTO"]'))).send_keys(fim_proximo_mes)
+
+        sleep(100)
         driver.find_element(By.XPATH, '//*[@id="W0010IMGATUALIZARVENCIMENTO"]').click()
 
         alterou_data = True

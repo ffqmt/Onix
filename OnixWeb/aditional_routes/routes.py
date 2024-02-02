@@ -337,12 +337,6 @@ def param_cad_pessoafisica():
         ''
     elif request.method == 'POST' and 'salvarAlteracoes' in request.form:
         try:
-            checagemCPF = (PessoaFisica.query
-                           .filter(PessoaFisica.id_empresa == current_user.empresa.id)
-                           .filter_by(
-                cnpj_cpf=request.form.get('cnpj_cpf').replace('.', '').replace('/', '').replace('-', ''))
-                           .filter(PessoaFisica.id != request.form.get('id'))
-                           .first())
             checagemIE = (PessoaFisica.query
                           .filter(PessoaFisica.id_empresa == current_user.empresa.id)
                           .filter(PessoaFisica.ie != '')
@@ -351,8 +345,6 @@ def param_cad_pessoafisica():
                           .first())
             if checagemIE:
                 raise Exception('IE#Duplicated')
-            if checagemCPF:
-                raise Exception('CPF#Duplicated')
 
             cadastro = PessoaFisica.query.filter_by(id=request.form.get('id'),
                                                     id_empresa=current_user.empresa.id).first()
@@ -384,11 +376,7 @@ def param_cad_pessoafisica():
                   )
         except Exception as e:
             db.session.rollback()
-            if 'CPF#Duplicated' in str(e):
-                flash([f"Já existe um cadastro com esse CPF.", "OK", "", "mensagem"],
-                      [f"Cadastro Duplicado", "error"],
-                      )
-            elif 'IE#Duplicated' in str(e):
+            if 'IE#Duplicated' in str(e):
                 flash([f"Já existe um cadastro com essa IE.", "OK", "", "mensagem"],
                       [f"Cadastro Duplicado", "error"],
                       )
@@ -399,11 +387,6 @@ def param_cad_pessoafisica():
 
     elif request.method == 'POST' and 'addCadastro' in request.form:
         try:
-            checagemCPF = (PessoaFisica.query
-                           .filter(PessoaFisica.id_empresa == current_user.empresa.id)
-                           .filter_by(
-                cnpj_cpf=request.form.get('cnpj_cpf').replace('.', '').replace('/', '').replace('-', ''))
-                           .first())
             checagemIE = (PessoaFisica.query
                           .filter(PessoaFisica.id_empresa == current_user.empresa.id)
                           .filter(PessoaFisica.ie != '')
@@ -411,8 +394,7 @@ def param_cad_pessoafisica():
                           .first())
             if checagemIE:
                 raise Exception('IE#Duplicated')
-            if checagemCPF:
-                raise Exception('CPF#Duplicated')
+
             NewCad = PessoaFisica()
             NewCad.id_empresa = current_user.empresa.id
             NewCad.name = request.form.get('name')
@@ -444,11 +426,7 @@ def param_cad_pessoafisica():
         except Exception as e:
             print(e)
             db.session.rollback()
-            if 'CPF#Duplicated' in str(e):
-                flash([f"Já existe um cadastro com esse CPF.", "OK", "", "mensagem"],
-                      [f"Cadastro Duplicado", "error"],
-                      )
-            elif 'IE#Duplicated' in str(e):
+            if 'IE#Duplicated' in str(e):
                 flash([f"Já existe um cadastro com essa IE.", "OK", "", "mensagem"],
                       [f"Cadastro Duplicado", "error"],
                       )
@@ -754,15 +732,10 @@ def autom_rpas_sefaz(estado):
     elif request.method == 'POST' and 'execSefaz' in request.form:
         competenciaMes = int(request.form.get('competencia').split('-')[0])
         competenciaAno = int(request.form.get('competencia').split('-')[1])
-        threadingCount = ThreadingCounter.query.session.query(func.max(ThreadingCounter.id)).scalar()
-        if not threadingCount:
-            threadingCount = 1
-        else:
-            threadingCount = threadingCount + 1
-        logId = threadingCount
 
+        codigo_unico = datetime.now().strftime("%Y%m%d%H%M%S%f")
         newThreadLogid = ThreadingCounter()
-        newThreadLogid.thread_name = f"{current_user.username}-{logId}"
+        newThreadLogid.thread_name = f"{codigo_unico}"
         newThreadLogid.orgao_exec = 'SEFAZ'
         newThreadLogid.tipo_exec = 'AUTOMACAO'
         newThreadLogid.user_exec = current_user.username
@@ -771,7 +744,7 @@ def autom_rpas_sefaz(estado):
         newThreadLogid.nome_arquivo = current_user.empresa.nome.split()[0].upper()
 
         threadDataLog = logData()
-        threadDataLog.id_thread = logId
+        threadDataLog.id_thread = f"{codigo_unico}"
         threadDataLog.log_title = 'Iniciando...'
         threadDataLog.log_desc = 'RPA iniciado.'
         threadDataLog.cnpj_cpf = 'BOT'
@@ -793,7 +766,7 @@ def autom_rpas_sefaz(estado):
                 callExec = getattr(globals()[estado], 'MainExecution_Fisica_Padrao', None)
                 if callExec is not None and callable(callExec):
                     t = threading.Thread(target=callExec,
-                                         name=f"{current_user.username}-{logId}",
+                                         name=f"{codigo_unico}",
                                          args=(listaPessoas,
                                                current_user.id_empresa,
                                                competenciaAno,
@@ -809,7 +782,7 @@ def autom_rpas_sefaz(estado):
                                    None)
                 if callExec is not None and callable(callExec):
                     t = threading.Thread(target=callExec,
-                                         name=f"{current_user.username}-{logId}",
+                                         name=f"{codigo_unico}",
                                          args=(listaPessoas,
                                                current_user.id_empresa,
                                                competenciaAno,
@@ -824,7 +797,7 @@ def autom_rpas_sefaz(estado):
                     [f"Automação não iniciada, automação para o estado não encontrada.", "OK", "", "mensagem"],
                     [f"Atenção", "error"],
                 )
-            return redirect(url_for('aditional_blueprint.fetchlog', logid=logId))
+            return redirect(url_for('aditional_blueprint.fetchlog', logname=codigo_unico))
         elif tipo == 'expecifico':  # EXPECIFICO
             listaParametros = {
                 'nfe_saida': checkOnOff(request.form.get('nfe_saida')),
@@ -837,7 +810,7 @@ def autom_rpas_sefaz(estado):
                 callExec = getattr(globals()[estado], 'MainExecution_Fisica_Expecifico', None)
                 if callExec is not None and callable(callExec):
                     t = threading.Thread(target=callExec,
-                                         name=f"{current_user.username}-{logId}",
+                                         name=f"{codigo_unico}",
                                          args=(listaPessoas,
                                                listaParametros,
                                                current_user.id_empresa,
@@ -854,7 +827,7 @@ def autom_rpas_sefaz(estado):
                                    None)
                 if callExec is not None and callable(callExec):
                     t = threading.Thread(target=callExec,
-                                         name=f"{current_user.username}-{logId}",
+                                         name=f"{codigo_unico}",
                                          args=(listaPessoas,
                                                listaParametros,
                                                current_user.id_empresa,
@@ -870,7 +843,7 @@ def autom_rpas_sefaz(estado):
                     [f"Automação não iniciada, automação para o estado não encontrada.", "OK", "", "mensagem"],
                     [f"Atenção", "error"],
                 )
-            return redirect(url_for('aditional_blueprint.fetchlog', logid=logId))
+            return redirect(url_for('aditional_blueprint.fetchlog', logname=codigo_unico))
 
     return render_template('sistemas/RPAS/automacoes/sefaz.html',
                            segment=segment,
@@ -901,8 +874,10 @@ def param_cad_agendamentos():
             Agendamento.processos_inclusos = str(request.form.getlist('processos_inclusos')).replace("'", '"')
             Agendamento.tipo_pessoa_agendamento = request.form.get('tipo_pessoa_agendamento')
             Agendamento.in_repeat = checkOnOff(request.form.get('in_repeat'))
+            Agendamento.in_comp_atual = checkOnOff(request.form.get('in_comp_atual'))
             Agendamento.status = 'Aguardando Execução'
             Agendamento.active = 1
+            Agendamento.path_receiver = request.form.get('path_receiver')
 
             db.session.add(Agendamento)
             db.session.commit()

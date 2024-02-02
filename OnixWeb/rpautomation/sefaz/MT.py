@@ -19,14 +19,16 @@ from selenium.webdriver.common.action_chains import ActionChains
 import os
 import zipfile
 
+from OnixWeb.addons.OnixSender import SendRPAData
 # from apps.authentication.models import Companies, ReportsRefreshControl, FilesParameters
 # from apps.configs.globals import Globals
 from OnixWeb.addons.appscontext import *
 
 from webdriver_auto_update.webdriver_auto_update import WebdriverAutoUpdate
 
-from OnixWeb.addons.models import PessoaJuridica, logData, ThreadingCounter, PessoaFisica, Empresas, AgendamentosRPA
-from OnixWeb.addons.util import log_message, verify_downloaded
+from OnixWeb.addons.models import PessoaJuridica, logData, ThreadingCounter, PessoaFisica, Empresas, AgendamentosRPA, \
+    City, UF
+from OnixWeb.addons.util import log_message, verify_downloaded, limpar_pasta
 
 import base64
 from PIL import Image
@@ -85,7 +87,6 @@ def dadosLoginSefaz(EmpresaExec):
 
 
 def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -136,37 +137,26 @@ def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec
                                    {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-            if listaParametros['nfe_saida'] or listaParametros['nfe_entrada']:
-                RegistrosNFe = verify_NFE_SAIDAENTRADA(driver=driver,
-                                                       nome_thread=nome_thread,
-                                                       tipo_exec=tipo_exec,
-                                                       name_company=name_company,
-                                                       cnpj_cpf=username,
-                                                       idDoc=username,
-                                                       execMes=mesExec,
-                                                       execAno=anoExec,
-                                                       pastaArquivos=pastaArquivos)
-                if RegistrosNFe:
-                    if listaParametros['nfe_saida']:
-                        exec_NFE_SAIDA(driver=driver,
-                                       nome_thread=nome_thread,
-                                       tipo_exec=tipo_exec,
-                                       name_company=name_company,
-                                       cnpj_cpf=username,
-                                       idDoc=username,
-                                       execMes=mesExec,
-                                       execAno=anoExec,
-                                       pastaArquivos=pastaArquivos)
-                    if listaParametros['nfe_entrada']:
-                        exec_NFE_ENTRADA(driver=driver,
-                                         nome_thread=nome_thread,
-                                         tipo_exec=tipo_exec,
-                                         name_company=name_company,
-                                         cnpj_cpf=username,
-                                         idDoc=username,
-                                         execMes=mesExec,
-                                         execAno=anoExec,
-                                         pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_saida']:
+                exec_NFE_SAIDA(driver=driver,
+                               nome_thread=nome_thread,
+                               tipo_exec=tipo_exec,
+                               name_company=name_company,
+                               cnpj_cpf=username,
+                               idDoc=username,
+                               execMes=mesExec,
+                               execAno=anoExec,
+                               pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_entrada']:
+                exec_NFE_ENTRADA(driver=driver,
+                                 nome_thread=nome_thread,
+                                 tipo_exec=tipo_exec,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
 
             if listaParametros['cte_emissor']:
                 exec_CTE_EMISSOR(driver=driver,
@@ -199,6 +189,8 @@ def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec
                           execMes=mesExec,
                           execAno=anoExec,
                           pastaArquivos=pastaArquivos)
+            sleep(1)
+            limpar_pasta(pastaArquivos)
 
             print(f'Processo Finalizado para: ({id_company}) {name_company}')
             includeLogData(nome_thread,
@@ -240,7 +232,6 @@ def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec
 
 
 def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -292,37 +283,26 @@ def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                                    {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-            if listaParametros['nfe_saida'] or listaParametros['nfe_entrada']:
-                RegistrosNFe = verify_NFE_SAIDAENTRADA(driver=driver,
-                                                       nome_thread=nome_thread,
-                                                       tipo_exec=tipo_exec,
-                                                       name_company=name_company,
-                                                       cnpj_cpf=username,
-                                                       idDoc=username,
-                                                       execMes=mesExec,
-                                                       execAno=anoExec,
-                                                       pastaArquivos=pastaArquivos)
-                if RegistrosNFe:
-                    if listaParametros['nfe_saida']:
-                        exec_NFE_SAIDA(driver=driver,
-                                       nome_thread=nome_thread,
-                                       tipo_exec=tipo_exec,
-                                       name_company=name_company,
-                                       cnpj_cpf=username,
-                                       idDoc=username,
-                                       execMes=mesExec,
-                                       execAno=anoExec,
-                                       pastaArquivos=pastaArquivos)
-                    if listaParametros['nfe_entrada']:
-                        exec_NFE_ENTRADA(driver=driver,
-                                         nome_thread=nome_thread,
-                                         tipo_exec=tipo_exec,
-                                         name_company=name_company,
-                                         cnpj_cpf=username,
-                                         idDoc=username,
-                                         execMes=mesExec,
-                                         execAno=anoExec,
-                                         pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_saida']:
+                exec_NFE_SAIDA(driver=driver,
+                               nome_thread=nome_thread,
+                               tipo_exec=tipo_exec,
+                               name_company=name_company,
+                               cnpj_cpf=username,
+                               idDoc=username,
+                               execMes=mesExec,
+                               execAno=anoExec,
+                               pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_entrada']:
+                exec_NFE_ENTRADA(driver=driver,
+                                 nome_thread=nome_thread,
+                                 tipo_exec=tipo_exec,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
 
             if listaParametros['cte_emissor']:
                 exec_CTE_EMISSOR(driver=driver,
@@ -355,6 +335,8 @@ def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                           execMes=mesExec,
                           execAno=anoExec,
                           pastaArquivos=pastaArquivos)
+            sleep(1)
+            limpar_pasta(pastaArquivos)
 
             print(f'Processo Finalizado para: ({id_company}) {name_company}')
             includeLogData(nome_thread,
@@ -396,7 +378,6 @@ def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
 
 
 def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -447,37 +428,26 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
                                    {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-            if listaParametros['nfe_saida'] or listaParametros['nfe_entrada']:
-                RegistrosNFe = verify_NFE_SAIDAENTRADA(driver=driver,
-                                                       nome_thread=nome_thread,
-                                                       tipo_exec=tipo_exec,
-                                                       name_company=name_company,
-                                                       cnpj_cpf=username,
-                                                       idDoc=ie,
-                                                       execMes=mesExec,
-                                                       execAno=anoExec,
-                                                       pastaArquivos=pastaArquivos)
-                if RegistrosNFe:
-                    if listaParametros['nfe_saida']:
-                        exec_NFE_SAIDA(driver=driver,
-                                       nome_thread=nome_thread,
-                                       tipo_exec=tipo_exec,
-                                       name_company=name_company,
-                                       cnpj_cpf=username,
-                                       idDoc=ie,
-                                       execMes=mesExec,
-                                       execAno=anoExec,
-                                       pastaArquivos=pastaArquivos)
-                    if listaParametros['nfe_entrada']:
-                        exec_NFE_ENTRADA(driver=driver,
-                                         nome_thread=nome_thread,
-                                         tipo_exec=tipo_exec,
-                                         name_company=name_company,
-                                         cnpj_cpf=username,
-                                         idDoc=ie,
-                                         execMes=mesExec,
-                                         execAno=anoExec,
-                                         pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_saida']:
+                exec_NFE_SAIDA(driver=driver,
+                               nome_thread=nome_thread,
+                               tipo_exec=tipo_exec,
+                               name_company=name_company,
+                               cnpj_cpf=username,
+                               idDoc=ie,
+                               execMes=mesExec,
+                               execAno=anoExec,
+                               pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_entrada']:
+                exec_NFE_ENTRADA(driver=driver,
+                                 nome_thread=nome_thread,
+                                 tipo_exec=tipo_exec,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=ie,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
 
             if listaParametros['cte_emissor']:
                 exec_CTE_EMISSOR(driver=driver,
@@ -510,6 +480,9 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
                           execMes=mesExec,
                           execAno=anoExec,
                           pastaArquivos=pastaArquivos)
+
+            sleep(1)
+            limpar_pasta(pastaArquivos)
 
             print(f'Processo Finalizado para: ({id_company}) {name_company}')
             includeLogData(nome_thread,
@@ -551,7 +524,6 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
 
 
 def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
-    AtualizarChromeDriver()
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
@@ -603,37 +575,26 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                                    {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-            if listaParametros['nfe_saida'] or listaParametros['nfe_entrada']:
-                RegistrosNFe = verify_NFE_SAIDAENTRADA(driver=driver,
-                                                       nome_thread=nome_thread,
-                                                       tipo_exec=tipo_exec,
-                                                       name_company=name_company,
-                                                       cnpj_cpf=username,
-                                                       idDoc=ie,
-                                                       execMes=mesExec,
-                                                       execAno=anoExec,
-                                                       pastaArquivos=pastaArquivos)
-                if RegistrosNFe:
-                    if listaParametros['nfe_saida']:
-                        exec_NFE_SAIDA(driver=driver,
-                                       nome_thread=nome_thread,
-                                       tipo_exec=tipo_exec,
-                                       name_company=name_company,
-                                       cnpj_cpf=username,
-                                       idDoc=ie,
-                                       execMes=mesExec,
-                                       execAno=anoExec,
-                                       pastaArquivos=pastaArquivos)
-                    if listaParametros['nfe_entrada']:
-                        exec_NFE_ENTRADA(driver=driver,
-                                         nome_thread=nome_thread,
-                                         tipo_exec=tipo_exec,
-                                         name_company=name_company,
-                                         cnpj_cpf=username,
-                                         idDoc=ie,
-                                         execMes=mesExec,
-                                         execAno=anoExec,
-                                         pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_saida']:
+                exec_NFE_SAIDA(driver=driver,
+                               nome_thread=nome_thread,
+                               tipo_exec=tipo_exec,
+                               name_company=name_company,
+                               cnpj_cpf=username,
+                               idDoc=ie,
+                               execMes=mesExec,
+                               execAno=anoExec,
+                               pastaArquivos=pastaArquivos)
+            if listaParametros['nfe_entrada']:
+                exec_NFE_ENTRADA(driver=driver,
+                                 nome_thread=nome_thread,
+                                 tipo_exec=tipo_exec,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=ie,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
 
             if listaParametros['cte_emissor']:
                 exec_CTE_EMISSOR(driver=driver,
@@ -666,6 +627,9 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                           execMes=mesExec,
                           execAno=anoExec,
                           pastaArquivos=pastaArquivos)
+
+            sleep(1)
+            limpar_pasta(pastaArquivos)
 
             print(f'Processo Finalizado para: ({id_company}) {name_company}')
             includeLogData(nome_thread,
@@ -711,8 +675,242 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
         dadosAgendamento.status = 'Em Execução'
         db.session.commit()
-    sleep(300)
-    print('##########EXECUTOU############')
+
+        if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
+            uf = UF.query.filter_by(id=idEstado).first()
+            DPbd = (PessoaJuridica.query
+                    .join(City)
+                    .options(joinedload(PessoaJuridica.city))
+                    .filter(PessoaJuridica.id_empresa == dadosAgendamento.id_empresa,
+                            PessoaJuridica.active_mensal == True,
+                            PessoaJuridica.active == True)
+                    .filter(City.uf == uf.uf)
+                    .all())
+        elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
+            uf = UF.query.filter_by(id=idEstado).first()
+            DPbd = (PessoaFisica.query
+                    .join(City)
+                    .options(joinedload(PessoaFisica.city))
+                    .filter(PessoaFisica.id_empresa == dadosAgendamento.id_empresa,
+                            PessoaFisica.active_mensal == True,
+                            PessoaFisica.active == True)
+                    .filter(City.uf == uf.uf)
+                    .all())
+
+        ParametrosAgendamento = []
+        for i in dadosAgendamento.processos_inclusos[1:-1].split('", "'):
+            ParametrosAgendamento.append(i.replace('"', ''))
+
+        listaPessoas = []
+        for pessoa in DPbd:
+            listaPessoas.append(pessoa.id)
+        EmpresaExec = dadosAgendamento.id_empresa
+        DataExecucao = datetime.now()
+
+        if dadosAgendamento.in_comp_atual:
+            MesExecucao = DataExecucao.month
+            AnoExecucao = DataExecucao.year
+        else:
+            if DataExecucao.month == 1:
+                MesExecucao = 12
+                AnoExecucao = DataExecucao.year - 1
+            else:
+                MesExecucao = DataExecucao.month - 1
+                AnoExecucao = DataExecucao.year
+
+        thread_atual = threading.current_thread()
+        nome_thread = thread_atual.name
+        caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
+
+        dados = []
+        desc = ''
+
+        if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
+            dados = dadosPessoasPJ(listaPessoas, EmpresaExec)
+            desc = 'pessoa jurídica'
+        elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
+            dados = dadosPessoasPF(listaPessoas, EmpresaExec)
+            desc = 'pessoa física'
+
+        listaLen = len(listaPessoas)
+        percentilProcesso = 80
+        percentilPorPessoa = int(percentilProcesso / listaLen)
+        percentilInicial = 5
+        setPercentilProcesso(nome_thread, percentilInicial)
+
+        '########## INICIA O DRIVER E CONFIGURA PARA EXECUÇÃO UNICA ##########'
+        driver = IniciarDriver()
+        '########## REALIZA O LOGIN UNICO SEFAZ ###########'
+        dadosLogin = dadosLoginSefaz(EmpresaExec)
+        logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
+
+        if logado:
+            counter = 0
+            print(f'Total empresas: {len(dados)} - Agendamento {dadosAgendamento.id} - Thread: {nome_thread}')
+            for pessoa in dados:
+
+                includeLogData(nome_thread,
+                               f'PROCESSOS - {pessoa["name"]}',
+                               f'Iniciando processos para a {desc}...',
+                               'BOT',
+                               'BOT',
+                               'primary-gradient',
+                               'SUCESSO',
+                               'success-gradient')
+
+                name_company = pessoa['name']
+                id_company = pessoa['id']
+                username = pessoa['username']
+                ie = pessoa['ie']
+
+                listaParametros = []
+                if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
+                    tipo_exec = 'PJ'
+                    listaParametros = checkParamPadrao('PJ', id_company)
+                elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
+                    tipo_exec = 'PF'
+                    listaParametros = checkParamPadrao('PF', id_company)
+
+                '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+                anoExec = f'{AnoExecucao}'
+                if len(str(MesExecucao)) == 1:
+                    mesExec = f'0{MesExecucao}'
+                else:
+                    mesExec = f'{MesExecucao}'
+
+                '########## VERIFICA PASTA TEMPORARIA ##########'
+                if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
+                    nome_empresa = f"{name_company} - {username}"
+                elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
+                    nome_empresa = f"{name_company} - {ie}"
+                pastaArquivos = os.path.join(caminho_pasta, nome_empresa, anoExec, mesExec)
+                if not os.path.exists(pastaArquivos):
+                    os.makedirs(pastaArquivos)
+
+                driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                       {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
+                '######### EXECUTA ESCOLHAS APOS LOGADO ########'
+                if listaParametros['nfe_saida'] and 'sefaz_nfe_saida' in ParametrosAgendamento:
+                    exec_NFE_SAIDA(driver=driver,
+                                   nome_thread=nome_thread,
+                                   tipo_exec=tipo_exec,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username if dadosAgendamento.tipo_pessoa_agendamento == 'PJ' else ie,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                if listaParametros['nfe_entrada'] and 'sefaz_nfe_entrada' in ParametrosAgendamento:
+                    exec_NFE_ENTRADA(driver=driver,
+                                     nome_thread=nome_thread,
+                                     tipo_exec=tipo_exec,
+                                     name_company=name_company,
+                                     cnpj_cpf=username,
+                                     idDoc=username if dadosAgendamento.tipo_pessoa_agendamento == 'PJ' else ie,
+                                     execMes=mesExec,
+                                     execAno=anoExec,
+                                     pastaArquivos=pastaArquivos)
+
+                if listaParametros['cte_emissor'] and 'sefaz_cte_emitido' in ParametrosAgendamento:
+                    exec_CTE_EMISSOR(driver=driver,
+                                     nome_thread=nome_thread,
+                                     tipo_exec=tipo_exec,
+                                     name_company=name_company,
+                                     cnpj_cpf=username,
+                                     idDoc=username if dadosAgendamento.tipo_pessoa_agendamento == 'PJ' else ie,
+                                     execMes=mesExec,
+                                     execAno=anoExec,
+                                     pastaArquivos=pastaArquivos)
+
+                if listaParametros['cte_tomador'] and 'sefaz_cte_tomado' in ParametrosAgendamento:
+                    exec_CTE_TOMADOR(driver=driver,
+                                     nome_thread=nome_thread,
+                                     tipo_exec=tipo_exec,
+                                     name_company=name_company,
+                                     cnpj_cpf=username,
+                                     idDoc=username,
+                                     execMes=mesExec,
+                                     execAno=anoExec,
+                                     pastaArquivos=pastaArquivos)
+
+                if listaParametros['nfce_emitida'] and 'sefaz_nfce' in ParametrosAgendamento:
+                    exec_NFCE(driver=driver,
+                              nome_thread=nome_thread,
+                              name_company=name_company,
+                              cnpj_cpf=username,
+                              ie=ie,
+                              execMes=mesExec,
+                              execAno=anoExec,
+                              pastaArquivos=pastaArquivos)
+
+                sleep(1)
+                limpar_pasta(pastaArquivos)
+                includeLogData(nome_thread,
+                               f'PROCESSOS - {pessoa["name"]}',
+                               f'Processos finalizados para a {desc}...',
+                               'BOT',
+                               'BOT',
+                               'primary-gradient',
+                               'SUCESSO',
+                               'success-gradient')
+                setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
+                percentilInicial = percentilInicial + percentilPorPessoa
+
+                counter += 1
+                print(f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
+
+        '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
+        try:
+            shutil.make_archive(caminho_pasta, 'zip', caminho_pasta)
+            includeLogData(nome_thread,
+                           f'ARQUIVO FINAL',
+                           'Arquivo gerado e disponível!',
+                           'BOT',
+                           'BOT',
+                           'primary-gradient',
+                           'SUCESSO',
+                           'success-gradient')
+            setPercentilProcesso(nome_thread, 100)
+        except Exception as e:
+            print(f"Ocorreu um erro ao zipar a pasta: {e}")
+            includeLogData(nome_thread,
+                           f'ARQUIVO FINAL',
+                           'Erro ao gerar arquivo!',
+                           'BOT',
+                           'RPA',
+                           'primary-gradient',
+                           'ERRO',
+                           'danger-gradient')
+
+        dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
+        if dadosAgendamento.in_repeat:
+            dadosAgendamento.status = 'Aguardando Próxima Execução'
+        else:
+            dadosAgendamento.status = 'Execução Finalizada'
+        db.session.commit()
+
+        print(f'Finalizou Execução do item agendado. (ID:{dadosAgendamento.id})')
+        sleep(5)
+        print('Iniciando envio dos arquivos do agendamento.')
+        sleep(5)
+
+        '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
+        DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
+        if DadosEmpresaEnvio.autorizado_schedule:
+            pathEnvio = dadosAgendamento.path_receiver
+            receiver_ip = DadosEmpresaEnvio.receiver_ip
+            receiver_port = DadosEmpresaEnvio.receiver_port
+            zipData = os.path.join(root_path, fr"OnixWeb\rpautomation\transactionFiles\{nome_thread}.zip")
+
+            print('Iniciando envio para:')
+            print(f'IP: {receiver_ip}')
+            print(f'Porta: {receiver_port}')
+            print(f'zipDataPath: {zipData}')
+            print(f'ReceiverPath: {pathEnvio}')
+            SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_port, pathEnvio)
+
+            print('Envio Finalizado!')
 
 
 def dadosPessoasPF(listaPessoas, EmpresaExec):
@@ -755,18 +953,10 @@ def dadosPessoasPJ(listaPessoas, EmpresaExec):
     return dadospessoas
 
 
-def AtualizarChromeDriver():
-    try:
-        chromedriverpath = os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver")
-        WebdriverAutoUpdate(chromedriverpath).check_driver()
-    except Exception as e:
-        print(e, 'Erro ao atualizar Chromedriver!')
-
-
 def IniciarDriver():
     service = Service(os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver\chromedriver.exe"))
     chrome_options = Options()
-    # chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--headless')
     chrome_options.add_argument('--window-size=1080,900')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -877,105 +1067,99 @@ def exec_LOGIN(driver, nome_thread, login_sefaz_contabilista, senha_sefaz_contab
                    'warning-gradient',
                    'SUCESSO',
                    'success-gradient')
-
+    print('logou SEFAZ')
     return logado
 
 
-def verify_NFE_SAIDAENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno,
-                            pastaArquivos):
-    actions = ActionChains(driver)
-    temregistrosNFE = False
-    if not temregistrosNFE:
-        try:
-            consultas = 'https://www.sefaz.mt.gov.br/nfe/pages/consultaemitidasrecebidas/consultaemitidasrecebidas.xhtml'
-            try:
-                driver.get(consultas)
-            except TimeoutException:
-                driver.refresh()
-
-            campoTipoDocumento = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "label[id$=':tipoDoct_label']")))
-            campoTipoDocumento.click()
-            sleep(0.2)
-
-            if tipo_exec == 'PJ':
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'tipoDoct_1')]"))).click()
-            elif tipo_exec == 'PF':
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'tipoDoct_0')]"))).click()
-
-            sleep(0.2)
-
-            campoInput = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':numrDoct']")))
-            campoInput.click()
-            sleep(0.2)
-            for char in f'{idDoc}':
-                campoInput.send_keys(f'{char}')
-                sleep(0.1)
-            sleep(0.2)
-            actions.send_keys(Keys.TAB).perform()
-            sleep(3)
-
-            mes = int(execMes)
-            ano = int(execAno)
-            inicio_mes = datetime(ano, mes, 1)
-            if mes == 12:
-                fim_mes = datetime(ano, mes, day=31)
-            else:
-                fim_mes = datetime(ano, mes + 1, 1) + timedelta(days=-1)
-            inicio_mes = inicio_mes.strftime("%d/%m/%Y")
-            fim_mes = fim_mes.strftime("%d/%m/%Y")
-
-            campoDtInicial = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':dataInicial_input']")))
-            for char in f'{inicio_mes}':
-                campoDtInicial.send_keys(char)
-            sleep(0.2)
-            actions.send_keys(Keys.TAB).perform()
-            campoDtFinal = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':dataFinal_input']")))
-            for char in f'{fim_mes}':
-                campoDtFinal.send_keys(char)
-            sleep(0.2)
-
-            campoConsulta = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, "//*[contains(@id, 'btnConsEmitReceb')]")))
-            campoConsulta.click()
-            try:
-                WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="primefacesmessagedlg"]')))
-                msgerro = driver.find_element(By.XPATH, '//*[@id="primefacesmessagedlg"]')
-                if msgerro.get_attribute("aria-live") == 'polite':
-                    pasta_destino = f"{pastaArquivos}/NFe-Sem-Saida e Entrada.png"
-                    if os.path.exists(pasta_destino):
-                        os.remove(pasta_destino)
-                    driver.save_screenshot(pasta_destino)
-                    driver.find_element(By.XPATH,
-                                        '//*[@id="primefacesmessagedlg"]/div[1]/a/span').click()
-                    temregistrosNFE = False
-
-                includeLogData(nome_thread,
-                               f'NFe - {name_company}',
-                               f'Pessoa não possui NFes de Saída/Entrada.',
-                               f'{cnpj_cpf}',
-                               'SEFAZ',
-                               'warning-gradient',
-                               'ATENÇÃO',
-                               'warning-gradient')
-
-            except Exception as e:
-                temregistrosNFE = True
-        except Exception as e:
-            print('error#1')
-            print(e)
-    return temregistrosNFE
-
-
 def exec_NFE_SAIDA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
-    possuiregistrosSaidas = True
+    actions = ActionChains(driver)
+    consultas = 'https://www.sefaz.mt.gov.br/nfe/pages/consultaemitidasrecebidas/consultaemitidasrecebidas.xhtml'
+    possuiregistrosSaidas = False
+    try:
+        driver.get(consultas)
+    except TimeoutException:
+        driver.refresh()
+
+    campoTipoDocumento = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "label[id$=':tipoDoct_label']")))
+    campoTipoDocumento.click()
+    sleep(0.2)
+
+    if tipo_exec == 'PJ':
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'tipoDoct_1')]"))).click()
+    elif tipo_exec == 'PF':
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'tipoDoct_0')]"))).click()
+
+    sleep(0.2)
+    try:
+        script = "document.querySelector('[id*=\'_modal\']').style.display = 'none';"
+        driver.execute_script(script)
+    except Exception:
+        sleep(2)
+    campoInput = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':numrDoct']")))
+    campoInput.click()
+    sleep(0.2)
+    for char in f'{idDoc}':
+        campoInput.send_keys(f'{char}')
+        sleep(0.1)
+    sleep(0.2)
+    actions.send_keys(Keys.TAB).perform()
+    sleep(3)
+
+    mes = int(execMes)
+    ano = int(execAno)
+    inicio_mes = datetime(ano, mes, 1)
+    if mes == 12:
+        fim_mes = datetime(ano, mes, day=31)
+    else:
+        fim_mes = datetime(ano, mes + 1, 1) + timedelta(days=-1)
+    inicio_mes = inicio_mes.strftime("%d/%m/%Y")
+    fim_mes = fim_mes.strftime("%d/%m/%Y")
+
+    campoDtInicial = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':dataInicial_input']")))
+    for char in f'{inicio_mes}':
+        campoDtInicial.send_keys(char)
+    sleep(0.2)
+    actions.send_keys(Keys.TAB).perform()
+    campoDtFinal = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':dataFinal_input']")))
+    for char in f'{fim_mes}':
+        campoDtFinal.send_keys(char)
+    sleep(0.2)
+
+    campoConsulta = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//*[contains(@id, 'btnConsEmitReceb')]")))
+    campoConsulta.click()
+    try:
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="primefacesmessagedlg"]')))
+        msgerro = driver.find_element(By.XPATH, '//*[@id="primefacesmessagedlg"]')
+        if msgerro.get_attribute("aria-live") == 'polite':
+            pasta_destino = f"{pastaArquivos}/NFe-Sem-Saida e Entrada.png"
+            if os.path.exists(pasta_destino):
+                os.remove(pasta_destino)
+            driver.save_screenshot(pasta_destino)
+            driver.find_element(By.XPATH,
+                                '//*[@id="primefacesmessagedlg"]/div[1]/a/span').click()
+            possuiregistrosSaidas = False
+
+        includeLogData(nome_thread,
+                       f'NFe - {name_company}',
+                       f'Pessoa não possui NFes de Saída/Entrada.',
+                       f'{cnpj_cpf}',
+                       'SEFAZ',
+                       'warning-gradient',
+                       'ATENÇÃO',
+                       'warning-gradient')
+
+    except Exception as e:
+        possuiregistrosSaidas = True
+
     try:
         nenhumRegistroSaidas = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located(
@@ -1057,7 +1241,7 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
     except TimeoutException:
         driver.refresh()
     try:
-        FlagDestinatario = WebDriverWait(driver, 10).until(
+        FlagDestinatario = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(
                 (By.XPATH,
                  "//*[contains(@id, 'sorEmissorDest')]/tbody/tr/td[2]/div/div[2]/span")))
@@ -1065,20 +1249,27 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
     except Exception as e:
         print('error#4')
         print(e)
-    sleep(0.2)
-    campoTipoDocumento = WebDriverWait(driver, 10).until(
+    sleep(0.5)
+
+    campoTipoDocumento = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, "label[id$=':tipoDoct_label']")))
     campoTipoDocumento.click()
     sleep(0.2)
+
     if tipo_exec == 'PJ':
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'tipoDoct_1')]"))).click()
     elif tipo_exec == 'PF':
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'tipoDoct_0')]"))).click()
 
-    sleep(1)
-    campoInput = WebDriverWait(driver, 10).until(
+    sleep(0.2)
+    try:
+        script = "document.querySelector('[id*=\'_modal\']').style.display = 'none';"
+        driver.execute_script(script)
+    except Exception:
+        sleep(2)
+    campoInput = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':numrDoct']")))
     campoInput.click()
     sleep(0.2)
@@ -1099,25 +1290,48 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
     inicio_mes = inicio_mes.strftime("%d/%m/%Y")
     fim_mes = fim_mes.strftime("%d/%m/%Y")
 
-    campoDtInicial = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':dataInicial_input']")))
+    campoDtInicial = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'dataInicial_input')]")))
     for char in f'{inicio_mes}':
         campoDtInicial.send_keys(char)
     sleep(0.2)
     actions.send_keys(Keys.TAB).perform()
-    campoDtFinal = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':dataFinal_input']")))
+    campoDtFinal = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'dataFinal_input')]")))
     for char in f'{fim_mes}':
         campoDtFinal.send_keys(char)
     sleep(0.2)
 
-    campoConsulta = WebDriverWait(driver, 10).until(
+    campoConsulta = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'btnConsEmitReceb')]")))
     campoConsulta.click()
     sleep(0.5)
 
     try:
-        nenhumRegistroEntradas = WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="primefacesmessagedlg"]')))
+        msgerro = driver.find_element(By.XPATH, '//*[@id="primefacesmessagedlg"]')
+        if msgerro.get_attribute("aria-live") == 'polite':
+            pasta_destino = f"{pastaArquivos}/NFe-Sem-Saida e Entrada.png"
+            if os.path.exists(pasta_destino):
+                os.remove(pasta_destino)
+            driver.save_screenshot(pasta_destino)
+            driver.find_element(By.XPATH,
+                                '//*[@id="primefacesmessagedlg"]/div[1]/a/span').click()
+        possuiregistrosEntradas = False
+        includeLogData(nome_thread,
+                       f'NFe - {name_company}',
+                       f'Pessoa não possui NFes de Saída/Entrada.',
+                       f'{cnpj_cpf}',
+                       'SEFAZ',
+                       'warning-gradient',
+                       'ATENÇÃO',
+                       'warning-gradient')
+
+    except Exception as e:
+        sleep(0.2)
+    try:
+        nenhumRegistroEntradas = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(
                 (By.XPATH, "//*[contains(@id, 'dtResultCons_data')]/tr/td")))
         textoRegistro = nenhumRegistroEntradas.get_attribute("textContent")
@@ -1385,6 +1599,7 @@ def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
             try:
                 CampoDownload = WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.XPATH, '//*[@id="btnGerarExcelConsulta"]')))
+                actions.move_to_element(CampoDownload)
                 CampoDownload.click()
             except Exception as e:
                 print('error#6')

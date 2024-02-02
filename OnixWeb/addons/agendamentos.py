@@ -24,6 +24,23 @@ fuso_horario = pytz.timezone("America/Cuiaba")
 root_path = os.path.abspath('')
 
 
+def AtualizarChromeDriver():
+    try:
+        chromedriverpath = os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver")
+        WebdriverAutoUpdate(chromedriverpath).check_driver()
+    except Exception as e:
+        print(e, 'Erro ao atualizar Chromedriver!')
+
+
+scheduler.add_job(
+    id='AtualizadorCD',
+    func=AtualizarChromeDriver,
+    trigger='cron',
+    day='*',
+    hour=5,
+)
+
+
 def chamaExec(agendamentoID):
     with app.app_context():
         agendamento = AgendamentosRPA.query.filter_by(id=agendamentoID).first()

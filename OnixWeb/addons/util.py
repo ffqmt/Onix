@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import glob
 import os
 import hashlib
 import binascii
@@ -70,3 +71,19 @@ def verify_downloaded(path):
         return True
     else:
         return False
+
+
+def limpar_pasta(path):
+    try:
+        remover_a = glob.glob(os.path.join(path, '*.htm'))
+        for arquivo in remover_a:
+            os.remove(arquivo)
+        remover_b = glob.glob(os.path.join(path, '*.crdownload'))
+        for arquivo in remover_b:
+            os.remove(arquivo)
+        remover_c = glob.glob(os.path.join(path, '*.zip'))
+        for arquivo in remover_c:
+            os.remove(arquivo)
+        print('Limpeza de pasta realizada com sucesso!')
+    except Exception:
+        print('Limpeza de pasta não realizada!')

@@ -68,6 +68,9 @@
                                                         {% if agendamento.in_repeat %}
                                                         <h6 class="card-subtitle text-info text-center"><b>( este agendamento se repetirá mensalmente )</b></h6>
                                                         {%endif%}
+                                                        {% if agendamento.in_comp_atual %}
+                                                        <h6 class="card-subtitle text-info text-center"><b>( Competência da Data de Execução )</b></h6>
+                                                        {%endif%}
                                                     </div>
                                                 </div>
 
@@ -109,8 +112,14 @@
                                                         Sem próxima execução.
                                                     </span><br>
 
+
                                                     {% endif %}
                                                 </div>
+
+                                            </div>
+                                             <div class="row mt-4 mb-2" style="padding-left:1rem;">
+                                                <h6 class="card-subtitle text-muted text-left">Pasta Receiver</h6>
+                                                 <b>{{agendamento.path_receiver}}</b>
                                             </div>
                                         </div>
                                     </div>

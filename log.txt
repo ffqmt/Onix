@@ -87,3 +87,17 @@
 26/01/2024 15:41 [INFO] Method: GET -> Tela 'schenduled_jobs' - Acessada por: CONTAUDI
 26/01/2024 15:42 [INFO] Method: GET -> Tela 'scheduled_jobs' - Acessada por: CONTAUDI
 26/01/2024 15:42 [INFO] Method: GET -> Tela 'scheduled_jobs' - Acessada por: CONTAUDI
+27/01/2024 12:45 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+27/01/2024 12:45 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+31/01/2024 18:13 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: CONTAUDI
+31/01/2024 18:13 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: CONTAUDI
+31/01/2024 18:13 [INFO] Method: GET -> Tela 'tela-de-bloqueio' - Acessada por: CONTAUDI
+31/01/2024 18:13 [INFO] Method: GET -> Tela 'tela-de-bloqueio' - Acessada por: CONTAUDI
+31/01/2024 18:18 [INFO] Method: GET -> Tela 'tela-de-bloqueio' - Acessada por: CONTAUDI
+31/01/2024 18:18 [INFO] Method: GET -> Tela 'tela-de-bloqueio' - Acessada por: CONTAUDI
+31/01/2024 21:18 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+31/01/2024 21:18 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+01/02/2024 11:46 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+01/02/2024 11:46 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+01/02/2024 20:28 [INFO] Method: GET -> Tela 'fetch-20240201201530014588' - Acessada por: CONTAUDI
+01/02/2024 20:28 [INFO] Method: GET -> Tela 'fetch-20240201201530014588' - Acessada por: CONTAUDI
