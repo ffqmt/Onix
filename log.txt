@@ -101,3 +101,7 @@
 01/02/2024 11:46 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
 01/02/2024 20:28 [INFO] Method: GET -> Tela 'fetch-20240201201530014588' - Acessada por: CONTAUDI
 01/02/2024 20:28 [INFO] Method: GET -> Tela 'fetch-20240201201530014588' - Acessada por: CONTAUDI
+05/02/2024 17:21 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: Anônimo
+05/02/2024 17:21 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: Anônimo
+05/02/2024 18:12 [INFO] Method: GET -> Tela 'robots.txt' - Acessada por: Anônimo
+05/02/2024 18:12 [INFO] Method: GET -> Tela 'robots.txt' - Acessada por: Anônimo
