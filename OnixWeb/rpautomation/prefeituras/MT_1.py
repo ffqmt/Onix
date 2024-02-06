@@ -1,6 +1,8 @@
 import shutil
 import threading
 
+import PyPDF2
+import pandas as pd
 from selenium import webdriver
 from selenium.common import NoSuchElementException, ElementNotInteractableException, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -23,8 +25,6 @@ from OnixWeb.addons.OnixSender import SendRPAData
 # from apps.authentication.models import Companies, ReportsRefreshControl, FilesParameters
 # from apps.configs.globals import Globals
 from OnixWeb.addons.appscontext import *
-
-from webdriver_auto_update.webdriver_auto_update import WebdriverAutoUpdate
 
 from OnixWeb.addons.models import PessoaJuridica, logData, ThreadingCounter, PessoaFisica, AgendamentosRPA, Empresas
 from OnixWeb.addons.util import log_message, verify_downloaded, limpar_pasta
@@ -674,7 +674,6 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
         '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
         DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
         if DadosEmpresaEnvio.autorizado_schedule:
-
             pathEnvio = dadosAgendamento.path_receiver
             receiver_ip = DadosEmpresaEnvio.receiver_ip
             receiver_port = DadosEmpresaEnvio.receiver_port
@@ -1272,6 +1271,129 @@ def exec_XML_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, exe
 def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
     actions = ActionChains(driver)
     try:
+        home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwencerramento'
+        try:
+            driver.get(f'{home_page}')
+        except TimeoutException:
+            driver.refresh()
+        print('GUIAISSQN - Executando')
+        erro = False
+        try:
+            campoCompMes = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, '_INENCMES')))
+            selectCompMes = Select(campoCompMes)
+            selectCompMes.select_by_value(str(int(execMes)))
+            sleep(0.2)
+            campoCompAno = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, '_INENCANO')))
+            campoCompAno.send_keys(f"{execAno}")
+            sleep(0.2)
+            campoTipo = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, '_INENCTIPO')))
+            selectTipo = Select(campoTipo)
+            selectTipo.select_by_value(str("P"))  # SERVIÇO PRESTADO GUIA ISSQN
+            sleep(0.2)
+            campoSubmit = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, 'SEARCHBUTTON')))
+            campoSubmit.click()
+            erro = False
+
+        except Exception as e:
+            print('Erro DAM(GUIA ISSQN)')
+            erro = True
+
+        if erro:
+            raise Exception('Erro ao gerar GUIA ISSQN!')
+
+        try:
+            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, "//*[text()='Não Existe Encerramento com os Dados Informados.']")))
+            driver.execute_script("document.body.style.zoom = '75%'")
+            pasta_destino = f"{pastaArquivos}/Sem GUIA ISSQN.png"
+            if os.path.exists(pasta_destino):
+                os.remove(pasta_destino)
+            driver.save_screenshot(pasta_destino)
+            driver.execute_script("document.body.style.zoom = '100%'")
+            alterou_data = False
+        except Exception:
+            alterou_data = True
+
+        if not alterou_data:
+            includeLogData(nome_thread,
+                           f'GUIA - {name_company}',
+                           f'Emissão de Guia Não Necessária/Empresa sem Movimento Prestado.',
+                           f'{cnpj_cpf}',
+                           'ISSQN',
+                           'info-gradient',
+                           'SUCESSO',
+                           'success-gradient')
+
+        if alterou_data:
+            linkDAM = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, '//*[@id="TBDAM_0001"]/tbody/tr/td/a')))
+            url_gerar = linkDAM.get_attribute("href")
+            primeira_aspas = url_gerar.find("'")
+            segunda_aspas = url_gerar.find("'", primeira_aspas + 1)
+            url_entre_aspas = url_gerar[primeira_aspas + 1:segunda_aspas]
+            url_sem_percentil27 = url_entre_aspas.split("%27")[0]
+            url_final = url_sem_percentil27
+            if url_final:
+                try:
+                    driver.get(
+                        f'http://s32.asp.srv.br:8080/issonline/servlet/{url_final}')
+                except TimeoutException:
+                    driver.refresh()
+                print("ISSQN - Guia pronta para download!")
+                try:
+                    WebDriverWait(driver, 5).until(
+                        EC.frame_to_be_available_and_switch_to_it((By.NAME, 'Embpage'))
+                    )
+                    WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located(
+                            (By.XPATH,
+                             '//*[@id="open-button"]'))).click()
+                except Exception as e:
+                    print('Clicou para baixar guia, com except.')
+
+                padrao_nome = 'DOCUMENTO_ARRECADACAO_MUNICIPAL'
+                novo_padrao = 'Guia-ISSQN'
+
+                downloaded = False
+                while not downloaded:
+                    guiasTributo = glob.glob(os.path.join(pastaArquivos, '*' + padrao_nome + '*.pdf'))
+                    if len(guiasTributo) >= 1:
+                        sleep(2)
+                        downloaded = True
+                    else:
+                        downloaded = False
+
+                guiasTributo = glob.glob(os.path.join(pastaArquivos, '*' + padrao_nome + '*.pdf'))
+                for guia in guiasTributo:
+                    os.rename(guia, os.path.join(pastaArquivos, novo_padrao + '.pdf'))
+
+                home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
+                try:
+                    driver.get(f'{home_page}')
+                except TimeoutException:
+                    driver.refresh()
+                includeLogData(nome_thread,
+                               f'GUIA - {name_company}',
+                               f'Guia ISSQN baixada com sucesso.',
+                               f'{cnpj_cpf}',
+                               'ISSQN',
+                               'info-gradient',
+                               'SUCESSO',
+                               'success-gradient')
+
+    except Exception as error:
+        includeLogData(nome_thread,
+                       f'GUIA - {name_company}',
+                       f'Erro ao baixar GUIA ISSQN.',
+                       f'{cnpj_cpf}',
+                       'ISSQN',
+                       'info-gradient',
+                       'ATENÇÃO',
+                       'warning-gradient')
+        print(error)
+
+
+def exec_GUIAISSQN_old01_01_2024(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
+    actions = ActionChains(driver)
+    try:
         home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
         try:
             driver.get(f'{home_page}')
@@ -1850,7 +1972,7 @@ def exec_NFSE_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, exec
         CampoInicio.send_keys('1')
         CampoFinal = driver.find_element(By.XPATH, '//*[@id="_NUMFINAL"]')
         CampoFinal.clear()
-        CampoFinal.send_keys('10000000')
+        CampoFinal.send_keys('1000000000')
         WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(
                 (By.XPATH, '//*[@id="TABLE1"]/tbody/tr[3]/td/p/input'))).click()
@@ -1869,7 +1991,7 @@ def exec_NFSE_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, exec
                         downloaded = True
                     else:
                         downloaded = False
-        sleep(0.5)
+        sleep(1)
         arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
         for arquivo in arquivos_zip:
             if 'Nota_Fiscal_Eletronica_' in arquivo:
@@ -1924,9 +2046,50 @@ def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, ex
                             '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select').click()
         driver.find_element(By.XPATH,
                             f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]').click()
+        selectYear = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(
+                (By.XPATH,
+                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
+        filtroYear = Select(selectYear)
+        filtroYear.select_by_visible_text(f"{ano}")
 
+        '##### BAIXA O EXCEL PARA PEGAR MAIOR E MENOR NUMERO DE NOTA DO LOTE #####'
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(
+                (By.XPATH,
+                 '//*[@id="CTRLEXPORT"]'))).click()
+
+        downloaded = False
+        while not downloaded:
+            arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.xls'))
+            for arquivo in arquivos_zip:
+                if 'WWNotaFiscalEletronica' in arquivo:
+                    if verify_downloaded(arquivo) is True:
+                        downloaded = True
+                    else:
+                        downloaded = False
+        sleep(0.5)
+
+        arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.xls'))
+        for arquivo in arquivos_zip:
+            if 'WWNotaFiscalEletronica' in arquivo:
+                listaNotas = pd.read_excel(arquivo)
+                notaMin = listaNotas['Nota'].min()
+                notaMax = listaNotas['Nota'].max()
+                if os.path.exists(arquivo):
+                    os.remove(arquivo)
+
+        try:
+            script = "document.querySelector('[id*=\'gxModalWindowDiv\']').style.display = 'none';"
+            driver.execute_script(script)
+        except Exception:
+            sleep(2)
+
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located(
+                (By.XPATH,
+                 '//*[@id="IMGIMPRIMIR"]'))).click()
         original_window = driver.current_window_handle
-        driver.find_element(By.XPATH, '//*[@id="IMGIMPRIMIR"]').click()
 
         WebDriverWait(driver, 10).until(EC.number_of_windows_to_be(2))
         for window_handle in driver.window_handles:
@@ -1942,36 +2105,97 @@ def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, ex
         except TimeoutException:
             driver.refresh()
 
-        driver.find_element(By.XPATH, '//*[@id="_NUMINICIAL"]').send_keys('1')
-        CampoFinal = driver.find_element(By.XPATH, '//*[@id="_NUMFINAL"]')
-        CampoFinal.clear()
-        CampoFinal.send_keys('100000000')
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="TBL20"]/tbody/tr[3]/td/p/input'))).click()
-        driver.switch_to.frame('Embpage')
+        maxNotasPorDownload = 50
+        arquivosPDFCriados = []
+        for notaInicio in range(notaMin, notaMax, maxNotasPorDownload):
+            notaFinal = min(notaInicio + maxNotasPorDownload - 1, notaMax)
 
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="open-button"]'))).click()
+            driver.find_element(By.XPATH, '//*[@id="_NUMINICIAL"]').send_keys(f'{notaInicio}')
+            CampoFinal = driver.find_element(By.XPATH, '//*[@id="_NUMFINAL"]')
+            CampoFinal.clear()
+            CampoFinal.send_keys(f'{notaFinal}')
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, '//*[@id="TBL20"]/tbody/tr[3]/td/p/input'))).click()
+            driver.switch_to.frame('Embpage')
 
-        downloaded = False
-        while not downloaded:
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, '//*[@id="open-button"]'))).click()
+
+            downloaded = False
+            while not downloaded:
+                arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
+                for arquivo in arquivos_zip:
+                    if 'Nota_Fiscal_Eletronica_' in arquivo:
+                        if verify_downloaded(arquivo) is True:
+                            downloaded = True
+                        else:
+                            downloaded = False
+            sleep(0.5)
             arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
             for arquivo in arquivos_zip:
                 if 'Nota_Fiscal_Eletronica_' in arquivo:
-                    if verify_downloaded(arquivo) is True:
-                        downloaded = True
-                    else:
-                        downloaded = False
-        sleep(0.5)
-        arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
-        for arquivo in arquivos_zip:
-            if 'Nota_Fiscal_Eletronica_' in arquivo:
-                novo_nome_xml = f"{pastaArquivos}/NOTAS - Prestados.pdf"
-                if os.path.exists(novo_nome_xml):
-                    os.remove(novo_nome_xml)
-                os.rename(arquivo, novo_nome_xml)
+                    novo_nome_xml = f"{pastaArquivos}/NOTAS - Prestados {notaInicio}-{notaFinal}.pdf"
+                    if os.path.exists(novo_nome_xml):
+                        os.remove(novo_nome_xml)
+                    os.rename(arquivo, novo_nome_xml)
+
+                    '#CRIA LISTA DE PDFS#'
+                    arquivosPDFCriados.append(novo_nome_xml)
+
+            '#### ENTRA NOVAMENTE NA PAGINA PARA INSERIR NOTAS ####'
+            try:
+                driver.get(current_url)
+            except TimeoutException:
+                driver.refresh()
+
+        if notaMax % maxNotasPorDownload != 0:
+            '#### BAIXA O ULTIMO ARQUIVO PARA GARANTIR O RESTANTE DOS ARQUIVOS ####'
+            ultimoNotaMin = (notaMax // maxNotasPorDownload) * maxNotasPorDownload + 1
+
+            driver.find_element(By.XPATH, '//*[@id="_NUMINICIAL"]').send_keys(f'{ultimoNotaMin}')
+            CampoFinal = driver.find_element(By.XPATH, '//*[@id="_NUMFINAL"]')
+            CampoFinal.clear()
+            CampoFinal.send_keys(f'{notaMax}')
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, '//*[@id="TBL20"]/tbody/tr[3]/td/p/input'))).click()
+            driver.switch_to.frame('Embpage')
+
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, '//*[@id="open-button"]'))).click()
+
+            downloaded = False
+            while not downloaded:
+                arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
+                for arquivo in arquivos_zip:
+                    if 'Nota_Fiscal_Eletronica_' in arquivo:
+                        if verify_downloaded(arquivo) is True:
+                            downloaded = True
+                        else:
+                            downloaded = False
+            sleep(0.5)
+            arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
+            for arquivo in arquivos_zip:
+                if 'Nota_Fiscal_Eletronica_' in arquivo:
+                    os.remove(arquivo)
+            sleep(1)
+
+        pdf_writer = PyPDF2.PdfWriter()
+        for arquivo in arquivosPDFCriados:
+            with open(arquivo, 'rb') as pdf_file:
+                pdf_reader = PyPDF2.PdfReader(pdf_file)
+                for pagina in range(len(pdf_reader.pages)):
+                    pagina_atual = pdf_reader.pages[pagina]
+                    pdf_writer.add_page(pagina_atual)
+
+            os.remove(arquivo)
+
+        ArquivoFinal = f"{pastaArquivos}/NOTAS - Prestados.pdf"
+        with open(ArquivoFinal, 'wb') as pdf_output:
+            pdf_writer.write(pdf_output)
 
         includeLogData(nome_thread,
                        f'NFSE - {name_company}',
@@ -1983,6 +2207,7 @@ def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, ex
                        'success-gradient')
 
     except Exception as Error:
+        sleep(2)
         includeLogData(nome_thread,
                        f'NFSE - {name_company}',
                        f'Não há PDF de serviços Prestados.',
@@ -1991,9 +2216,3 @@ def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, ex
                        'info-gradient',
                        'ATENÇÃO',
                        'warning-gradient')
-        driver.execute_script("document.body.style.zoom = '75%'")
-        pasta_destino = f"{pastaArquivos}/ERRO PDF NOTAS PRESTADOS.png"
-        if os.path.exists(pasta_destino):
-            os.remove(pasta_destino)
-        driver.save_screenshot(pasta_destino)
-        driver.execute_script("document.body.style.zoom = '100%'")

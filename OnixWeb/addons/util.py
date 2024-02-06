@@ -8,6 +8,8 @@ from datetime import datetime
 from flask import request
 from flask_login import current_user
 from sqlalchemy import inspect
+from webdriver_auto_update.chrome_app_utils import ChromeAppUtils
+from webdriver_auto_update.webdriver_manager import WebDriverManager
 
 
 def hash_pass(password):
@@ -87,3 +89,15 @@ def limpar_pasta(path):
         print('Limpeza de pasta realizada com sucesso!')
     except Exception:
         print('Limpeza de pasta não realizada!')
+
+
+def AtualizarChromeDriver(root_path):
+    try:
+        chromedriverpath = os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver")
+        chrome_app_utils = ChromeAppUtils()
+        chrome_app_version = chrome_app_utils.get_chrome_version()
+        print("Chrome application version: ", chrome_app_version)
+        WebDriverManager(chromedriverpath).main()
+        print('-----======> ChromeDriver Atualizado.')
+    except Exception as e:
+        print(e, 'Erro ao atualizar Chromedriver!')

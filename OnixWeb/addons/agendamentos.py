@@ -1,16 +1,10 @@
 import threading
-import os
-from random import random
-
-import requests
-from sqlalchemy import func
-
-from webdriver_auto_update.webdriver_auto_update import WebdriverAutoUpdate
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from OnixWeb.addons.appscontext import *
 from OnixWeb.addons.models import AgendamentosRPA, Empresas, City, UF, ThreadingCounter, logData
+from OnixWeb.addons.util import AtualizarChromeDriver
 from OnixWeb.rpautomation.prefeituras import MT_1
 from OnixWeb.rpautomation.sefaz import MT
 import pytz
@@ -24,20 +18,14 @@ fuso_horario = pytz.timezone("America/Cuiaba")
 root_path = os.path.abspath('')
 
 
-def AtualizarChromeDriver():
-    try:
-        chromedriverpath = os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver")
-        WebdriverAutoUpdate(chromedriverpath).check_driver()
-    except Exception as e:
-        print(e, 'Erro ao atualizar Chromedriver!')
-
-
+# AGENDAMENTO DE ATUALIZAÇÃO DO CHROMEDRIVER
 scheduler.add_job(
     id='AtualizadorCD',
     func=AtualizarChromeDriver,
+    args=(root_path,),
     trigger='cron',
     day='*',
-    hour=5,
+    hour=23,
 )
 
 

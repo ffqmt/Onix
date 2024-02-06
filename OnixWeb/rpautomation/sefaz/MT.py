@@ -24,8 +24,6 @@ from OnixWeb.addons.OnixSender import SendRPAData
 # from apps.configs.globals import Globals
 from OnixWeb.addons.appscontext import *
 
-from webdriver_auto_update.webdriver_auto_update import WebdriverAutoUpdate
-
 from OnixWeb.addons.models import PessoaJuridica, logData, ThreadingCounter, PessoaFisica, Empresas, AgendamentosRPA, \
     City, UF
 from OnixWeb.addons.util import log_message, verify_downloaded, limpar_pasta
