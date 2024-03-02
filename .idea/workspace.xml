@@ -5,13 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="584cf1f5-1b8a-4250-8cd5-3138542327c5" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/OnixWeb/templates/errors/page-403.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/Onix.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Onix.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/OnixWeb/templates/sistemas/RPAS/parametrizacoes/cadastros/modals/modal_agendamento_alterarhorario.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/Onix.iml" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/aditional_routes/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/aditional_routes/routes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/OnixWeb/onixTestDB.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/onixTestDB.sqlite3" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha.png" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha_tratado.png" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha_tratado.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/log.txt" beforeDir="false" afterPath="$PROJECT_DIR$/log.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/templates/sistemas/RPAS/parametrizacoes/cadastros/agendamentos.html" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/templates/sistemas/RPAS/parametrizacoes/cadastros/agendamentos.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,31 +42,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ASKED_ADD_EXTERNAL_FILES&quot;: &quot;true&quot;,
-    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;Python.MT_PrimaveraDoLeste.executor&quot;: &quot;Run&quot;,
-    &quot;Python.agendamentos.executor&quot;: &quot;Run&quot;,
-    &quot;Python.onix.executor&quot;: &quot;Run&quot;,
-    &quot;Python.server-waitress-5000.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/phros/OneDrive/Documentos/GitHub/Onix/OnixWeb/templates/errors&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_ADD_EXTERNAL_FILES": "true",
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "DefaultHtmlFileTemplate": "HTML File",
+    "Python.MT_PrimaveraDoLeste.executor": "Run",
+    "Python.agendamentos.executor": "Run",
+    "Python.onix.executor": "Run",
+    "Python.server-waitress-5000.executor": "Run",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "D:/Onix Solutions/Onix/OnixWeb/templates/sistemas/RPAS/parametrizacoes/cadastros/modals",
+    "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\sistemas\RPAS\parametrizacoes\cadastros\modals" />
       <recent name="C:\Users\phros\OneDrive\Documentos\GitHub\Onix\OnixWeb\templates\errors" />
       <recent name="D:\Onix Solutions\Onix\OnixWeb\static\assets\images\users" />
       <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\admin" />
       <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\aa-Tests" />
-      <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\sistemas\RPAS\parametrizacoes\cadastros\modals" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\Onix Solutions\Onix\OnixWeb\rpautomation" />
@@ -77,7 +76,7 @@
       <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\aa-Tests" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.server-waitress-5000">
+  <component name="RunManager" selected="Python.onix">
     <configuration name="onix" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Onix" />
       <option name="ENV_FILES" value="" />
@@ -124,8 +123,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.server-waitress-5000" />
         <item itemvalue="Python.onix" />
+        <item itemvalue="Python.server-waitress-5000" />
       </list>
     </recent_temporary>
   </component>

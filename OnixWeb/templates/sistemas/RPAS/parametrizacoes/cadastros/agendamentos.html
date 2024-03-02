@@ -52,7 +52,15 @@
                                                                 Remover Agendamento
                                                             </button>
                                                         </form>
+                                                        <button onclick="fetchEditAgeHo('{{agendamento.id}}')" type="button" class="modal-effect dropdown-item" data-bs-toggle="modal" data-bs-original-title="Alterar Horário" data-bs-effect="effect-rotate-left" data-bs-target="#alterarHorario">
+                                                                <i class="fe fe-clock me-1" ></i>
+                                                                Alterar Horário
+                                                        </button>
+
                                                     </div>
+                                                </div>
+                                                <div class="modal fade" id="alterarHorario">
+                                                    {% include 'sistemas/RPAS/parametrizacoes/cadastros/modals/modal_agendamento_alterarhorario.html' %}
                                                 </div>
                                                 <h5 class="card-title">(ID: {{agendamento.id}}) Agendamento {{agendamento.tipo_agendamento}}</h5>
                                                 <div class="row">
@@ -137,6 +145,24 @@
 
 <script src="https://unpkg.com/imask"></script>
 <script>
+function setInnerHTML(elm, html) {
+  elm.innerHTML = html;
+
+  Array.from(elm.querySelectorAll("script"))
+    .forEach( oldScriptEl => {
+      const newScriptEl = document.createElement("script");
+
+      Array.from(oldScriptEl.attributes).forEach( attr => {
+        newScriptEl.setAttribute(attr.name, attr.value)
+      });
+
+      const scriptText = document.createTextNode(oldScriptEl.innerHTML);
+      newScriptEl.appendChild(scriptText);
+
+      oldScriptEl.parentNode.replaceChild(newScriptEl, oldScriptEl);
+  });
+}
+
 
 function refreshScriptModal() {
     var forms = document.getElementsByClassName('needs-validation');
@@ -162,6 +188,45 @@ function refreshScriptModal() {
             return (className.match(/(^|\s)effect-\S+/g) || []).join(' ');
         });
     });
+};
+
+function fetchEditAgeHo(id) {
+    const EditAgeHoModal = document.getElementById("alterarHorario");
+    event.preventDefault();
+    var userData = [id]
+    var jsonData = userData;
+    var xhr = new XMLHttpRequest();
+    var content = {};
+    xhr.open("POST", "/fetchEditAgeHo", true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("x-csrf-token", "{{ csrf_token() }}");
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                content.title = xhr.getResponseHeader('title');
+                content.message = xhr.getResponseHeader('message');
+                content.style = xhr.getResponseHeader('style');
+            } else {
+                content.title = 'Conexão perdida!';
+                content.message = 'Não foi possivel estabelecer conexão.';
+                content.style = 'warning1';
+            };
+            $.growl({
+              title: content.title,
+              style: content.style,
+              message: content.message,
+              namespace: 'growl',
+              duration: 2000,
+              close: "&#215;",
+              location: "default",
+              size: "large",
+              delayOnHover: true
+            });
+        }
+        setInnerHTML(EditAgeHoModal, xhr.response)
+        refreshScriptModal()
+    };
+    xhr.send(JSON.stringify(jsonData));
 };
 
 

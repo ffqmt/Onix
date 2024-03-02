@@ -892,7 +892,8 @@ def param_cad_agendamentos():
             )
         else:
             flash(
-                [f"O dia e hora informado não pode ser igual a dia e hora atual, agendamento não foi cadastrado.", "OK", "", "mensagem"],
+                [f"O dia e hora informado não pode ser igual a dia e hora atual, agendamento não foi cadastrado.", "OK",
+                 "", "mensagem"],
                 [f"Atenção", "warning"],
             )
     elif request.method == 'POST' and 'delAgendamento' in request.form:
@@ -909,6 +910,30 @@ def param_cad_agendamentos():
             [f"Agendamento removido com sucesso.", "OK", "", "mensagem"],
             [f"Sucesso", "success"],
         )
+    elif request.method == 'POST' and 'altAgeHorario' in request.form:
+        Agendamento = AgendamentosRPA.query.filter_by(id=request.form.get('ageid'),
+                                                      id_empresa=current_user.empresa.id).first()
+        Agendamento.data_primeiro_agendamento = Agendamento.data_primeiro_agendamento.replace(
+            hour=int(request.form.get('novohorario')[0:2]), minute=int(request.form.get('novohorario')[3:5]))
+        try:
+            scheduler.remove_job(f"{Agendamento.id}")
+        except Exception:
+            'Job removido anteriormente, ignora.'
+        db.session.commit()
+        try:
+            agendamentoAddSchenduler(Agendamento.id)
+            flash(
+                [f"Horário de Agendamento alterado com sucesso.", "OK", "", "mensagem"],
+                [f"Sucesso", "success"],
+            )
+        except Exception as e:
+            print(e)
+            flash(
+                [f"Horário de Agendamento não alterado.", "OK", "", "mensagem"],
+                [f"Atenção", "warning"],
+            )
+
+
 
     agendamentosEmpresa = AgendamentosRPA.query.filter_by(id_empresa=current_user.empresa.id).all()
     return render_template('sistemas/RPAS/parametrizacoes/cadastros/agendamentos.html',
@@ -925,3 +950,20 @@ def param_scheduled_jobs():
         return render_template('admin/scheduled_jobs.html',
                                segment=segment,
                                SchedulerJobs=SchedulerJobs)
+
+
+@blueprint.route('/fetchEditAgeHo', methods=['POST'])
+@login_required
+def fetchEditAgeHo():
+    response = make_response()
+    segment = get_segment(request)
+    dados = request.get_json()
+    edit = AgendamentosRPA.query.filter_by(id=dados[0], id_empresa=current_user.empresa.id).first()
+    response.data = render_template(
+        'sistemas/RPAS/parametrizacoes/cadastros/modals/modal_agendamento_alterarhorario.html',
+        segment=segment,
+        editAgeHour=edit)
+    response.headers['style'] = 'notice1'
+    response.headers['title'] = 'Alterando Horário!'
+    response.headers['message'] = f'O agendamento {edit.id} esta sendo alterado!'
+    return response
