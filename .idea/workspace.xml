@@ -5,13 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="584cf1f5-1b8a-4250-8cd5-3138542327c5" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/OnixWeb/templates/errors/page-403.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/Onix.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Onix.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/OnixWeb/addons/agendamentos.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/addons/agendamentos.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/OnixWeb/addons/util.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/addons/util.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/OnixWeb/onixTestDB.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/onixTestDB.sqlite3" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/prefeituras/MT_1.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/prefeituras/MT_1.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/MT.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/MT.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha.png" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha_tratado.png" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha_tratado.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/log.txt" beforeDir="false" afterPath="$PROJECT_DIR$/log.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -57,17 +57,17 @@
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;main&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Onix Solutions/Onix/OnixWeb/static/assets/images/users&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/phros/OneDrive/Documentos/GitHub/Onix/OnixWeb/templates/errors&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   }
 }</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\phros\OneDrive\Documentos\GitHub\Onix\OnixWeb\templates\errors" />
       <recent name="D:\Onix Solutions\Onix\OnixWeb\static\assets\images\users" />
       <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\admin" />
       <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\aa-Tests" />
       <recent name="D:\Onix Solutions\Onix\OnixWeb\templates\sistemas\RPAS\parametrizacoes\cadastros\modals" />
-      <recent name="D:\Onix Solutions\Onix\OnixWeb\static\assets\plugins\fullcalendar" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\Onix Solutions\Onix\OnixWeb\rpautomation" />

@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<NFSE>
+	<NOTA>
+		<LINK>http://s32.asp.srv.br:8080/issonline/servlet/hgeranfe?TCXlvG1mKZNLm0tEJyLRdQ%3D%3D,UzVkLWhiPgOnCbTzaoJWYg%3D%3D</LINK>
+		<COD>128</COD>
+		<RPS>7580-5835-3183</RPS>
+		<ANOCOMP>2024</ANOCOMP>
+		<MESCOMP>2</MESCOMP>
+		<DATA>01/02/2024</DATA>
+		<HORA>01/01/0001 10:08:39</HORA>
+		<LOCALSERV>D</LOCALSERV>
+		<SERIECOD>7</SERIECOD>
+		<SERIEDESC>NFSE</SERIEDESC>
+		<SITCOD>1</SITCOD>
+		<SITDESC>Simples Nacional</SITDESC>
+		<OBSSERVICO>&amp;nbsp;RECEBIMENTO DE COMISSÃO ID ABAIXO&lt;br /&gt;
+&lt;br /&gt;
+&lt;span style=&quot;font-size:11.0pt;line-height:115%;&amp;#10;font-family:&amp;quot;Calibri&amp;quot;,&amp;quot;sans-serif&amp;quot;;mso-ascii-theme-font:minor-latin;mso-fareast-font-family:&amp;#10;Calibri;mso-fareast-theme-font:minor-latin;mso-hansi-theme-font:minor-latin;&amp;#10;mso-bidi-font-family:&amp;quot;Times New Roman&amp;quot;;mso-bidi-theme-font:minor-bidi;&amp;#10;mso-ansi-language:PT-BR;mso-fareast-language:EN-US;mso-bidi-language:AR-SA&quot;&gt;790191&amp;nbsp;&lt;br /&gt;
+&lt;br /&gt;
+&lt;p data-pm-slice=&quot;1 1 []&quot;&gt;Dados da conta:&lt;/p&gt;
+&lt;p&gt;Banco: 748 - Banco Cooperativo Sicredi S.A. - Bansicredi&lt;/p&gt;
+&lt;p&gt;Agência: 0802&lt;/p&gt;
+&lt;p&gt;Conta: 70474-3&lt;/p&gt;
+&lt;p&gt;Razão Social: CLESSIA EULALIA FELIX VASCONCELLOS XAVIER AGUIAR 2&lt;/p&gt;
+&lt;p&gt;CNPJ: 27.595.567/0001-04 (Chave Pix)&lt;/p&gt;
+&lt;/span&gt;</OBSSERVICO>
+		<RETIDO>N</RETIDO>
+		<ATIVCOD>9.02</ATIVCOD>
+		<ATIVDESC>AGENCIAMENTO,ORGANIZAÇÃO, PROMOÇÃO, INTERMEDIAÇÃO E EXECUÇÃO</ATIVDESC>
+		<BASECALC>5155.37</BASECALC>
+		<IMPOSTO>0.00</IMPOSTO>
+		<DEDUCAO>0.00</DEDUCAO>
+		<DEDMATERIAIS>N</DEDMATERIAIS>
+		<PIS>0.00</PIS>
+		<COFINS>0.00</COFINS>
+		<INSS>0.00</INSS>
+		<IR>0.00</IR>
+		<CSLL>0.00</CSLL>
+		<ICMS>0.00</ICMS>
+		<IPI>0.00</IPI>
+		<IOF>0.00</IOF>
+		<CIDE>0.00</CIDE>
+		<OUTROSTRIBUTOS>0.00</OUTROSTRIBUTOS>
+		<OUTRASRETENCOES>0.00</OUTRASRETENCOES>
+		<RETENCAO>0.00</RETENCAO>
+		<ALIQUOTA>0.0000</ALIQUOTA>
+		<PRESTCODCONTRIB>479136</PRESTCODCONTRIB>
+		<PRESTCODMOBILIARIO>13177</PRESTCODMOBILIARIO>
+		<PRESTINSCRICAOMUN>13177</PRESTINSCRICAOMUN>
+		<PRESTCPFCNPJ>27595567000104</PRESTCPFCNPJ>
+		<PRESTNOMERAZAO>CLESSIA AGUIAR VIAGENS LTDA</PRESTNOMERAZAO>
+		<PRESTESTAB>S</PRESTESTAB>
+		<PRESTSUPERSIMP>S</PRESTSUPERSIMP>
+		<PRESTPREFIXOCOD>3</PRESTPREFIXOCOD>
+		<PRESTPREFIXODESC>AVENIDA</PRESTPREFIXODESC>
+		<PRESTLOGCOD>55</PRESTLOGCOD>
+		<PRESTLOGDESC>PARANA</PRESTLOGDESC>
+		<PRESTBAIRROCOD>2</PRESTBAIRROCOD>
+		<PRESTBAIRRODESC>CIDADE PRIMAVERA II</PRESTBAIRRODESC>
+		<PRESTMUNICIPIOCOD>5107040</PRESTMUNICIPIOCOD>
+		<PRESTMUNICIPIODESC>PRIMAVERA DO LESTE</PRESTMUNICIPIODESC>
+		<PRESTMUNICIPIOUF>MT</PRESTMUNICIPIOUF>
+		<PRESTNUMERO>757</PRESTNUMERO>
+		<PRESTCEP>78850000</PRESTCEP>
+		<TOMCODCONTRIB>684898</TOMCODCONTRIB>
+		<TOMCODMOBILIARIO>0</TOMCODMOBILIARIO>
+		<TOMINSCRICAOMUN/>
+		<TOMCPFCNPJ>01365194000191</TOMCPFCNPJ>
+		<TOMNOMERAZAO>BEST WAY TRIPS AGENCIA DE VIAGENS E TURISMO LTDA</TOMNOMERAZAO>
+		<TOMPREFIXOCOD/>
+		<TOMPREFIXODESC/>
+		<TOMLOGCOD/>
+		<TOMLOGDESC>AV. PRESIDENTE AFFONSO CAMARGO</TOMLOGDESC>
+		<TOMBAIRROCOD/>
+		<TOMBAIRRODESC/>
+		<TOMMUNICIPIOCOD>4106902</TOMMUNICIPIOCOD>
+		<TOMMUNICIPIODESC>CURITIBA</TOMMUNICIPIODESC>
+		<TOMMUNICIPIOUF>PR</TOMMUNICIPIOUF>
+		<TOMNUMERO>330</TOMNUMERO>
+		<TOMCEP>80060090</TOMCEP>
+		<DATAVENCIMENTO/>
+		<SERVICOS>
+			<SERVICO>
+				<CODIGO>1</CODIGO>
+				<DESCRICAO>SERVIÇO</DESCRICAO>
+				<QUANTIDADE>1.00</QUANTIDADE>
+				<DESCONTO>0.00</DESCONTO>
+				<VALOR>5155.370000</VALOR>
+			</SERVICO>
+		</SERVICOS>
+		<VALORTOTALSERVICOS>5155.37</VALORTOTALSERVICOS>
+	</NOTA>
+	<NOTA>
+		<LINK>http://s32.asp.srv.br:8080/issonline/servlet/hgeranfe?baPC%2B4FVHBv3HBoVhO7xUQ%3D%3D,UzVkLWhiPgOnCbTzaoJWYg%3D%3D</LINK>
+		<COD>129</COD>
+		<RPS>6347-4301-5824</RPS>
+		<ANOCOMP>2024</ANOCOMP>
+		<MESCOMP>2</MESCOMP>
+		<DATA>02/02/2024</DATA>
+		<HORA>01/01/0001 10:08:24</HORA>
+		<LOCALSERV>D</LOCALSERV>
+		<SERIECOD>7</SERIECOD>
+		<SERIEDESC>NFSE</SERIEDESC>
+		<SITCOD>1</SITCOD>
+		<SITDESC>Simples Nacional</SITDESC>
+		<OBSSERVICO>COMISSÃO A RECEBER ID&amp;nbsp;88741 PAX: LUCAS BRAGA DALTROZO;NICOLLI MACHADO GUADAGNIN DALTROZO&lt;br /&gt;
+&lt;br /&gt;
+&lt;p data-pm-slice=&quot;1 1 []&quot;&gt;Dados da conta:&lt;/p&gt;
+&lt;p&gt;Banco: 748 - Banco Cooperativo Sicredi S.A. - Bansicredi&lt;/p&gt;
+&lt;p&gt;Agência: 0802&lt;/p&gt;
+&lt;p&gt;Conta: 70474-3&lt;/p&gt;
+&lt;p&gt;Razão Social: CLESSIA EULALIA FELIX VASCONCELLOS XAVIER AGUIAR 2&lt;/p&gt;
+&lt;p&gt;CNPJ: 27.595.567/0001-04 (Chave Pix)&lt;/p&gt;</OBSSERVICO>
+		<RETIDO>N</RETIDO>
+		<ATIVCOD>9.02</ATIVCOD>
+		<ATIVDESC>AGENCIAMENTO,ORGANIZAÇÃO, PROMOÇÃO, INTERMEDIAÇÃO E EXECUÇÃO</ATIVDESC>
+		<BASECALC>941.09</BASECALC>
+		<IMPOSTO>0.00</IMPOSTO>
+		<DEDUCAO>0.00</DEDUCAO>
+		<DEDMATERIAIS>N</DEDMATERIAIS>
+		<PIS>0.00</PIS>
+		<COFINS>0.00</COFINS>
+		<INSS>0.00</INSS>
+		<IR>0.00</IR>
+		<CSLL>0.00</CSLL>
+		<ICMS>0.00</ICMS>
+		<IPI>0.00</IPI>
+		<IOF>0.00</IOF>
+		<CIDE>0.00</CIDE>
+		<OUTROSTRIBUTOS>0.00</OUTROSTRIBUTOS>
+		<OUTRASRETENCOES>0.00</OUTRASRETENCOES>
+		<RETENCAO>0.00</RETENCAO>
+		<ALIQUOTA>0.0000</ALIQUOTA>
+		<PRESTCODCONTRIB>479136</PRESTCODCONTRIB>
+		<PRESTCODMOBILIARIO>13177</PRESTCODMOBILIARIO>
+		<PRESTINSCRICAOMUN>13177</PRESTINSCRICAOMUN>
+		<PRESTCPFCNPJ>27595567000104</PRESTCPFCNPJ>
+		<PRESTNOMERAZAO>CLESSIA AGUIAR VIAGENS LTDA</PRESTNOMERAZAO>
+		<PRESTESTAB>S</PRESTESTAB>
+		<PRESTSUPERSIMP>S</PRESTSUPERSIMP>
+		<PRESTPREFIXOCOD>3</PRESTPREFIXOCOD>
+		<PRESTPREFIXODESC>AVENIDA</PRESTPREFIXODESC>
+		<PRESTLOGCOD>55</PRESTLOGCOD>
+		<PRESTLOGDESC>PARANA</PRESTLOGDESC>
+		<PRESTBAIRROCOD>2</PRESTBAIRROCOD>
+		<PRESTBAIRRODESC>CIDADE PRIMAVERA II</PRESTBAIRRODESC>
+		<PRESTMUNICIPIOCOD>5107040</PRESTMUNICIPIOCOD>
+		<PRESTMUNICIPIODESC>PRIMAVERA DO LESTE</PRESTMUNICIPIODESC>
+		<PRESTMUNICIPIOUF>MT</PRESTMUNICIPIOUF>
+		<PRESTNUMERO>757</PRESTNUMERO>
+		<PRESTCEP>78850000</PRESTCEP>
+		<TOMCODCONTRIB>684898</TOMCODCONTRIB>
+		<TOMCODMOBILIARIO>0</TOMCODMOBILIARIO>
+		<TOMINSCRICAOMUN/>
+		<TOMCPFCNPJ>01365194000191</TOMCPFCNPJ>
+		<TOMNOMERAZAO>BEST WAY TRIPS AGENCIA DE VIAGENS E TURISMO LTDA</TOMNOMERAZAO>
+		<TOMPREFIXOCOD/>
+		<TOMPREFIXODESC/>
+		<TOMLOGCOD/>
+		<TOMLOGDESC>AV. PRESIDENTE AFFONSO CAMARGO</TOMLOGDESC>
+		<TOMBAIRROCOD/>
+		<TOMBAIRRODESC/>
+		<TOMMUNICIPIOCOD>4106902</TOMMUNICIPIOCOD>
+		<TOMMUNICIPIODESC>CURITIBA</TOMMUNICIPIODESC>
+		<TOMMUNICIPIOUF>PR</TOMMUNICIPIOUF>
+		<TOMNUMERO>330</TOMNUMERO>
+		<TOMCEP>80060090</TOMCEP>
+		<DATAVENCIMENTO/>
+		<SERVICOS>
+			<SERVICO>
+				<CODIGO>1</CODIGO>
+				<DESCRICAO>SERVIÇO</DESCRICAO>
+				<QUANTIDADE>1.00</QUANTIDADE>
+				<DESCONTO>0.00</DESCONTO>
+				<VALOR>941.090000</VALOR>
+			</SERVICO>
+		</SERVICOS>
+		<VALORTOTALSERVICOS>941.09</VALORTOTALSERVICOS>
+	</NOTA>
+	<NOTA>
+		<LINK>http://s32.asp.srv.br:8080/issonline/servlet/hgeranfe?%2BUH521XHPEdcE3rBIPMY1A%3D%3D,UzVkLWhiPgOnCbTzaoJWYg%3D%3D</LINK>
+		<COD>130</COD>
+		<RPS>3601-5072-0704</RPS>
+		<ANOCOMP>2024</ANOCOMP>
+		<MESCOMP>2</MESCOMP>
+		<DATA>12/02/2024</DATA>
+		<HORA>01/01/0001 08:31:00</HORA>
+		<LOCALSERV>D</LOCALSERV>
+		<SERIECOD>7</SERIECOD>
+		<SERIEDESC>NFSE</SERIEDESC>
+		<SITCOD>1</SITCOD>
+		<SITDESC>Simples Nacional</SITDESC>
+		<OBSSERVICO>&lt;strong&gt;&amp;nbsp;CMISSÃO A RECEBER&amp;nbsp; ID&amp;nbsp;21598&lt;br /&gt;
+&lt;br /&gt;
+&lt;/strong&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Dados da conta:&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Banco: 748 - Banco Cooperativo Sicredi S.A. - Bansicredi&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Agência: 0802&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Conta: 70474-3&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Razão Social: CLESSIA EULALIA FELIX VASCONCELLOS XAVIER AGUIAR 2&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;CNPJ: 27.595.567/0001-04 (Chave Pix)&lt;/p&gt;</OBSSERVICO>
+		<RETIDO>N</RETIDO>
+		<ATIVCOD>9.02</ATIVCOD>
+		<ATIVDESC>AGENCIAMENTO,ORGANIZAÇÃO, PROMOÇÃO, INTERMEDIAÇÃO E EXECUÇÃO</ATIVDESC>
+		<BASECALC>346.08</BASECALC>
+		<IMPOSTO>0.00</IMPOSTO>
+		<DEDUCAO>0.00</DEDUCAO>
+		<DEDMATERIAIS>N</DEDMATERIAIS>
+		<PIS>0.00</PIS>
+		<COFINS>0.00</COFINS>
+		<INSS>0.00</INSS>
+		<IR>0.00</IR>
+		<CSLL>0.00</CSLL>
+		<ICMS>0.00</ICMS>
+		<IPI>0.00</IPI>
+		<IOF>0.00</IOF>
+		<CIDE>0.00</CIDE>
+		<OUTROSTRIBUTOS>0.00</OUTROSTRIBUTOS>
+		<OUTRASRETENCOES>0.00</OUTRASRETENCOES>
+		<RETENCAO>0.00</RETENCAO>
+		<ALIQUOTA>0.0000</ALIQUOTA>
+		<PRESTCODCONTRIB>479136</PRESTCODCONTRIB>
+		<PRESTCODMOBILIARIO>13177</PRESTCODMOBILIARIO>
+		<PRESTINSCRICAOMUN>13177</PRESTINSCRICAOMUN>
+		<PRESTCPFCNPJ>27595567000104</PRESTCPFCNPJ>
+		<PRESTNOMERAZAO>CLESSIA AGUIAR VIAGENS LTDA</PRESTNOMERAZAO>
+		<PRESTESTAB>S</PRESTESTAB>
+		<PRESTSUPERSIMP>S</PRESTSUPERSIMP>
+		<PRESTPREFIXOCOD>3</PRESTPREFIXOCOD>
+		<PRESTPREFIXODESC>AVENIDA</PRESTPREFIXODESC>
+		<PRESTLOGCOD>55</PRESTLOGCOD>
+		<PRESTLOGDESC>PARANA</PRESTLOGDESC>
+		<PRESTBAIRROCOD>2</PRESTBAIRROCOD>
+		<PRESTBAIRRODESC>CIDADE PRIMAVERA II</PRESTBAIRRODESC>
+		<PRESTMUNICIPIOCOD>5107040</PRESTMUNICIPIOCOD>
+		<PRESTMUNICIPIODESC>PRIMAVERA DO LESTE</PRESTMUNICIPIODESC>
+		<PRESTMUNICIPIOUF>MT</PRESTMUNICIPIOUF>
+		<PRESTNUMERO>757</PRESTNUMERO>
+		<PRESTCEP>78850000</PRESTCEP>
+		<TOMCODCONTRIB>638532</TOMCODCONTRIB>
+		<TOMCODMOBILIARIO>0</TOMCODMOBILIARIO>
+		<TOMINSCRICAOMUN/>
+		<TOMCPFCNPJ>10692316000145</TOMCPFCNPJ>
+		<TOMRGIE>2623102</TOMRGIE>
+		<TOMNOMERAZAO>JUST TUR OPERADORA DE TURISMO ERILEI</TOMNOMERAZAO>
+		<TOMPREFIXOCOD/>
+		<TOMPREFIXODESC/>
+		<TOMLOGCOD/>
+		<TOMLOGDESC>AVENIDA T 12</TOMLOGDESC>
+		<TOMBAIRROCOD/>
+		<TOMBAIRRODESC>SETOR BUENO</TOMBAIRRODESC>
+		<TOMMUNICIPIOCOD/>
+		<TOMMUNICIPIODESC>GOIANIA</TOMMUNICIPIODESC>
+		<TOMMUNICIPIOUF>GO</TOMMUNICIPIOUF>
+		<TOMNUMERO>35</TOMNUMERO>
+		<TOMCEP>74223080</TOMCEP>
+		<DATAVENCIMENTO/>
+		<SERVICOS>
+			<SERVICO>
+				<CODIGO>1</CODIGO>
+				<DESCRICAO>SERVIÇO</DESCRICAO>
+				<QUANTIDADE>1.00</QUANTIDADE>
+				<DESCONTO>0.00</DESCONTO>
+				<VALOR>346.080000</VALOR>
+			</SERVICO>
+		</SERVICOS>
+		<VALORTOTALSERVICOS>346.08</VALORTOTALSERVICOS>
+	</NOTA>
+	<NOTA>
+		<LINK>http://s32.asp.srv.br:8080/issonline/servlet/hgeranfe?hTsaCfzxZkB44lQwl8J96A%3D%3D,UzVkLWhiPgOnCbTzaoJWYg%3D%3D</LINK>
+		<COD>131</COD>
+		<RPS>5334-4104-1693</RPS>
+		<ANOCOMP>2024</ANOCOMP>
+		<MESCOMP>2</MESCOMP>
+		<DATA>23/02/2024</DATA>
+		<HORA>01/01/0001 13:40:39</HORA>
+		<LOCALSERV>D</LOCALSERV>
+		<SERIECOD>7</SERIECOD>
+		<SERIEDESC>NFSE</SERIEDESC>
+		<SITCOD>1</SITCOD>
+		<SITDESC>Simples Nacional</SITDESC>
+		<OBSSERVICO>&amp;nbsp;COMISSÃO A RECEBER ID&lt;br /&gt;
+ID&amp;nbsp;&lt;span style=&quot;font-size: 10pt; line-height: 115%; font-family: titillium_webbold, &amp;quot;serif&amp;quot;; color: rgb(66, 66, 78); background-image: initial; background-position: initial; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial;&quot;&gt;4346121 R$ 1558,01&lt;br /&gt;
+&lt;span style=&quot;font-size:10.0pt;line-height:115%;font-family:&amp;#10;&amp;quot;titillium_webbold&amp;quot;,&amp;quot;serif&amp;quot;;color:#42424E;background:white&quot;&gt;ID 4346291&lt;/span&gt; R$ 1.519,26&lt;br /&gt;
+&lt;br /&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Dados da conta:&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Banco: 748 - Banco Cooperativo Sicredi S.A. - Bansicredi&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Agência: 0802&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Conta: 70474-3&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;Razão Social: CLESSIA EULALIA FELIX VASCONCELLOS XAVIER AGUIAR 2&lt;/p&gt;
+&lt;p dir=&quot;auto&quot; style=&quot;margin: 12px 0px 0px; color: rgb(23, 43, 77); font-family: -apple-system, BlinkMacSystemFont, &amp;quot;Segoe UI&amp;quot;, Roboto, &amp;quot;Noto Sans&amp;quot;, Ubuntu, &amp;quot;Droid Sans&amp;quot;, &amp;quot;Helvetica Neue&amp;quot;, sans-serif; font-size: 14px; background-color: rgba(9, 30, 66, 0.06);&quot;&gt;CNPJ: 27.595.567/0001-04 (Chave Pix)&lt;/p&gt;
+&lt;o:p&gt;&lt;/o:p&gt;&lt;/span&gt;</OBSSERVICO>
+		<RETIDO>N</RETIDO>
+		<ATIVCOD>9.02</ATIVCOD>
+		<ATIVDESC>AGENCIAMENTO,ORGANIZAÇÃO, PROMOÇÃO, INTERMEDIAÇÃO E EXECUÇÃO</ATIVDESC>
+		<BASECALC>3077.27</BASECALC>
+		<IMPOSTO>0.00</IMPOSTO>
+		<DEDUCAO>0.00</DEDUCAO>
+		<DEDMATERIAIS>N</DEDMATERIAIS>
+		<PIS>0.00</PIS>
+		<COFINS>0.00</COFINS>
+		<INSS>0.00</INSS>
+		<IR>0.00</IR>
+		<CSLL>0.00</CSLL>
+		<ICMS>0.00</ICMS>
+		<IPI>0.00</IPI>
+		<IOF>0.00</IOF>
+		<CIDE>0.00</CIDE>
+		<OUTROSTRIBUTOS>0.00</OUTROSTRIBUTOS>
+		<OUTRASRETENCOES>0.00</OUTRASRETENCOES>
+		<RETENCAO>0.00</RETENCAO>
+		<ALIQUOTA>0.0000</ALIQUOTA>
+		<PRESTCODCONTRIB>479136</PRESTCODCONTRIB>
+		<PRESTCODMOBILIARIO>13177</PRESTCODMOBILIARIO>
+		<PRESTINSCRICAOMUN>13177</PRESTINSCRICAOMUN>
+		<PRESTCPFCNPJ>27595567000104</PRESTCPFCNPJ>
+		<PRESTNOMERAZAO>CLESSIA AGUIAR VIAGENS LTDA</PRESTNOMERAZAO>
+		<PRESTESTAB>S</PRESTESTAB>
+		<PRESTSUPERSIMP>S</PRESTSUPERSIMP>
+		<PRESTPREFIXOCOD>3</PRESTPREFIXOCOD>
+		<PRESTPREFIXODESC>AVENIDA</PRESTPREFIXODESC>
+		<PRESTLOGCOD>55</PRESTLOGCOD>
+		<PRESTLOGDESC>PARANA</PRESTLOGDESC>
+		<PRESTBAIRROCOD>2</PRESTBAIRROCOD>
+		<PRESTBAIRRODESC>CIDADE PRIMAVERA II</PRESTBAIRRODESC>
+		<PRESTMUNICIPIOCOD>5107040</PRESTMUNICIPIOCOD>
+		<PRESTMUNICIPIODESC>PRIMAVERA DO LESTE</PRESTMUNICIPIODESC>
+		<PRESTMUNICIPIOUF>MT</PRESTMUNICIPIOUF>
+		<PRESTNUMERO>757</PRESTNUMERO>
+		<PRESTCEP>78850000</PRESTCEP>
+		<TOMCODCONTRIB>595925</TOMCODCONTRIB>
+		<TOMCODMOBILIARIO>0</TOMCODMOBILIARIO>
+		<TOMINSCRICAOMUN/>
+		<TOMCPFCNPJ>82170291000120</TOMCPFCNPJ>
+		<TOMNOMERAZAO>ORINTER REPRESENTAÇÕES, VIAGENS E TURISMO LTDA</TOMNOMERAZAO>
+		<TOMPREFIXOCOD/>
+		<TOMPREFIXODESC/>
+		<TOMLOGCOD/>
+		<TOMLOGDESC>ALAMEDA RIO BRANCO</TOMLOGDESC>
+		<TOMBAIRROCOD/>
+		<TOMBAIRRODESC>CENTRO</TOMBAIRRODESC>
+		<TOMMUNICIPIOCOD>4202404</TOMMUNICIPIOCOD>
+		<TOMMUNICIPIODESC>BLUMENAU</TOMMUNICIPIODESC>
+		<TOMMUNICIPIOUF>SC</TOMMUNICIPIOUF>
+		<TOMNUMERO>238</TOMNUMERO>
+		<TOMCEP>89010300</TOMCEP>
+		<DATAVENCIMENTO/>
+		<SERVICOS>
+			<SERVICO>
+				<CODIGO>1</CODIGO>
+				<DESCRICAO>SERVIÇO</DESCRICAO>
+				<QUANTIDADE>1.00</QUANTIDADE>
+				<DESCONTO>0.00</DESCONTO>
+				<VALOR>3077.270000</VALOR>
+			</SERVICO>
+		</SERVICOS>
+		<VALORTOTALSERVICOS>3077.27</VALORTOTALSERVICOS>
+	</NOTA>
+</NFSE>
