@@ -954,7 +954,7 @@ def dadosPessoasPJ(listaPessoas, EmpresaExec):
 def IniciarDriver():
     service = Service(os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver\chromedriver.exe"))
     chrome_options = Options()
-    chrome_options.add_argument('--headless')
+    # chrome_options.add_argument('--headless')
     chrome_options.add_argument('--window-size=1080,900')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
