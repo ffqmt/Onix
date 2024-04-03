@@ -5,6 +5,8 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from OnixWeb.addons.appscontext import *
 from OnixWeb.addons.models import AgendamentosRPA, Empresas, City, UF, ThreadingCounter, logData
 from OnixWeb.addons.util import AtualizarChromeDriver
+import hashlib
+import os
 from OnixWeb.rpautomation.prefeituras import MT_1
 from OnixWeb.rpautomation.sefaz import MT
 import pytz
@@ -34,8 +36,7 @@ def chamaExec(agendamentoID):
         agendamento = AgendamentosRPA.query.filter_by(id=agendamentoID).first()
         idCidUF = agendamento.cd_ufcidade_agendamento
         idAgendamento = agendamento.id
-
-        codigo_unico = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        codigo_unico = hashlib.sha256(os.urandom(16)).hexdigest()
         newThreadLogid = ThreadingCounter()
         newThreadLogid.thread_name = f"{codigo_unico}"
         newThreadLogid.orgao_exec = f'{agendamento.tipo_agendamento}'

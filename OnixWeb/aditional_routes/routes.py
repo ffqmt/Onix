@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import os
+import hashlib
 import threading
 from datetime import datetime
 from time import sleep
@@ -543,8 +544,7 @@ def autom_rpas_prefeituras(estado, id_cidade):
     elif request.method == 'POST' and 'execPrefeituras' in request.form:
         competenciaMes = int(request.form.get('competencia').split('-')[0])
         competenciaAno = int(request.form.get('competencia').split('-')[1])
-
-        codigo_unico = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        codigo_unico = hashlib.sha256(os.urandom(16)).hexdigest()
         newThreadLogid = ThreadingCounter()
         newThreadLogid.thread_name = f"{codigo_unico}"
         newThreadLogid.orgao_exec = 'PREFEITURA'
@@ -732,8 +732,7 @@ def autom_rpas_sefaz(estado):
     elif request.method == 'POST' and 'execSefaz' in request.form:
         competenciaMes = int(request.form.get('competencia').split('-')[0])
         competenciaAno = int(request.form.get('competencia').split('-')[1])
-
-        codigo_unico = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        codigo_unico = hashlib.sha256(os.urandom(16)).hexdigest()
         newThreadLogid = ThreadingCounter()
         newThreadLogid.thread_name = f"{codigo_unico}"
         newThreadLogid.orgao_exec = 'SEFAZ'
