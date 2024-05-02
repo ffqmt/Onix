@@ -832,15 +832,15 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
                                      execAno=anoExec,
                                      pastaArquivos=pastaArquivos)
 
-                if listaParametros['nfce_emitida'] and 'sefaz_nfce' in ParametrosAgendamento:
-                    exec_NFCE(driver=driver,
-                              nome_thread=nome_thread,
-                              name_company=name_company,
-                              cnpj_cpf=username,
-                              ie=ie,
-                              execMes=mesExec,
-                              execAno=anoExec,
-                              pastaArquivos=pastaArquivos)
+                # if listaParametros['nfce_emitida'] and 'sefaz_nfce' in ParametrosAgendamento:
+                #     exec_NFCE(driver=driver,
+                #               nome_thread=nome_thread,
+                #               name_company=name_company,
+                #               cnpj_cpf=username,
+                #               ie=ie,
+                #               execMes=mesExec,
+                #               execAno=anoExec,
+                #               pastaArquivos=pastaArquivos)
 
                 sleep(1)
                 limpar_pasta(pastaArquivos)
@@ -1101,6 +1101,8 @@ def exec_NFE_SAIDA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc
     campoInput.click()
     sleep(0.2)
     for char in f'{idDoc}':
+        campoInput = WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "input[id$=':numrDoct']")))
         campoInput.send_keys(f'{char}')
         sleep(0.1)
     sleep(0.2)
@@ -1242,7 +1244,7 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
         FlagDestinatario = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located(
                 (By.XPATH,
-                 "//*[contains(@id, 'sorEmissorDest')]/tbody/tr/td[2]/div/div[2]/span")))
+                 "//*[contains(@id, 'sorEmissorDest')]/tbody/tr/td[2]/div/div[2]")))
         FlagDestinatario.click()
     except Exception as e:
         print('error#4')
@@ -1963,8 +1965,10 @@ def exec_NFCE(driver, nome_thread, name_company, cnpj_cpf, ie, execMes, execAno,
                         driver.refresh()
                 except Exception as e:
                     temregistrosNFC = True
+                    pass
             except Exception as e:
                 temregistrosNFC = False
+                pass
 
         if temregistrosNFC:
             try:

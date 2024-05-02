@@ -282,3 +282,15 @@
 02/04/2024 17:57 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: FISCAL
 02/04/2024 17:57 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: FISCAL
 02/04/2024 17:57 [INFO] Method: GET -> Tela 'index.html' - Acessada por: FISCAL
+03/04/2024 13:00 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: FISCAL
+03/04/2024 13:00 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: FISCAL
+04/04/2024 15:23 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+04/04/2024 15:23 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+08/04/2024 13:08 [INFO] Method: GET -> Tela 'index.html' - Acessada por: Anônimo
+15/04/2024 17:24 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+15/04/2024 17:24 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: CONTAUDI
+16/04/2024 11:57 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: FISCAL
+16/04/2024 11:57 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: FISCAL
+18/04/2024 07:28 [INFO] Method: GET -> Tela 'index.html' - Acessada por: Anônimo
+02/05/2024 09:48 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: FISCAL
+02/05/2024 09:48 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: FISCAL

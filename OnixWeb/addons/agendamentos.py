@@ -28,6 +28,7 @@ scheduler.add_job(
     trigger='cron',
     day='*',
     hour=23,
+    minute=30
 )
 
 
