@@ -1304,6 +1304,11 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
 
     campoConsulta = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.XPATH, "//*[contains(@id, 'btnConsEmitReceb')]")))
+    try:
+        script = "document.querySelector('[id*=\'_modal\']').style.display = 'none';"
+        driver.execute_script(script)
+    except Exception:
+        sleep(2)
     campoConsulta.click()
     sleep(0.5)
 

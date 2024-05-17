@@ -294,3 +294,9 @@
 18/04/2024 07:28 [INFO] Method: GET -> Tela 'index.html' - Acessada por: Anônimo
 02/05/2024 09:48 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: FISCAL
 02/05/2024 09:48 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: FISCAL
+09/05/2024 09:57 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: Anônimo
+09/05/2024 09:57 [INFO] Method: GET -> Tela 'favicon.ico' - Acessada por: Anônimo
+09/05/2024 09:57 [INFO] Method: GET -> Tela 'index.html' - Acessada por: Anônimo
+10/05/2024 09:55 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: FISCAL
+10/05/2024 09:55 [INFO] Method: GET -> Tela 'editar-perfil' - Acessada por: FISCAL
+10/05/2024 11:07 [INFO] Method: GET -> Tela 'index.html' - Acessada por: Anônimo
