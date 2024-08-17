@@ -1,6 +1,6 @@
 import shutil
 import threading
-
+from selenium_stealth import stealth
 from selenium import webdriver
 from selenium.common import NoSuchElementException, ElementNotInteractableException, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -16,6 +16,8 @@ from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 import glob
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+
 import os
 import zipfile
 
@@ -856,7 +858,8 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
                 percentilInicial = percentilInicial + percentilPorPessoa
 
                 counter += 1
-                print(f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
+                print(
+                    f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
 
         '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
         try:
@@ -954,19 +957,67 @@ def dadosPessoasPJ(listaPessoas, EmpresaExec):
 def IniciarDriver():
     service = Service(os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver\chromedriver.exe"))
     chrome_options = Options()
+
     # chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--window-size=1080,900')
+    #chrome_options.add_argument("--incognito")
+
+
+    # chrome_options.add_argument('--window-size=1080,900')
+    chrome_options.add_argument("start-maximized")
+    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+    chrome_options.add_argument('--disable-extensions')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-    prefs = {"plugins.plugins_list": [{"enabled": False,
-                                       "name": "Chrome PDF Viewer"}],
-             "download.extensions_to_open": "",
+
+
+    # Carregar a extensão
+    chrome_extension_path = os.path.join(root_path, "OnixWeb", "rpautomation", "dependencias", "chrome_extension")
+    chrome_options.add_argument(f'load-extension={chrome_extension_path}')
+
+    prefs = {"plugins.plugins_list": [{"enabled": True, "name": "Chrome PDF Viewer"}],
              "plugins.always_open_pdf_externally": True,
              "credentials_enable_service": False,
+             "download.prompt_for_download": False,
+             "download.directory_upgrade": True,
              "profile.password_manager_enabled": False
              }
     chrome_options.add_experimental_option('prefs', prefs)
     driver = webdriver.Chrome(service=service, options=chrome_options)
+
+    stealth(driver,
+            languages=["pt-BR", "pt"],
+            vendor="Google Inc.",
+            platform="Win32",
+            webgl_vendor="Intel Inc.",
+            renderer="Intel Iris OpenGL Engine",
+            fix_hairline=True,
+            )
+
+    # Definindo o User-Agent para parecer um navegador real
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": user_agent})
+
+    # Remover o webdriver dos atributos do navegador
+    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+        'source': '''
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => {
+                        0: { name: "Chrome PDF Viewer", filename: "internal-pdf-viewer" },
+                        1: { name: "Chrome PDF Plugin", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai" },
+                        2: { name: "Widevine Content Decryption Module", filename: "widevinecdmadapter" }
+                    }
+                });
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['pt-BR', 'pt']
+                });
+            '''
+    })
+
+    # driver.get("https://bot.sannysoft.com/")
+    # sleep(10000)
     # driver.set_page_load_timeout(10)
     return driver
 
@@ -1393,6 +1444,7 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                        'warning-gradient',
                        'SUCESSO',
                        'success-gradient')
+
 
 
 def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):

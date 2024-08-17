@@ -748,7 +748,6 @@ def IniciarDriver():
     chrome_options.add_experimental_option('prefs', prefs)
     driver = webdriver.Chrome(service=service, options=chrome_options)
     # driver.set_page_load_timeout(10)
-
     return driver
 
 
@@ -815,6 +814,7 @@ def exec_LOGIN(driver, nome_thread, name_company, cnpj_cpf, username, password, 
             sleep(0.2)
             driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINLOGIN"]').send_keys('username')
             driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINLOGIN"]').send_keys(Keys.ENTER)
+            sleep(1)
             driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINSENHA"]').send_keys('password')
             driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINSENHA"]').send_keys(Keys.ENTER)
             attempts += 1

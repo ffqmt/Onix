@@ -27,8 +27,8 @@ scheduler.add_job(
     args=(root_path,),
     trigger='cron',
     day='*',
-    hour=23,
-    minute=30
+    hour=12,
+    minute=00
 )
 
 
