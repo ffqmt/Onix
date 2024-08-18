@@ -4,9 +4,10 @@ from OnixWeb.addons.appscontext import *
 from OnixWeb.addons.models import AgendamentosRPA
 
 
-def SendRPAData(id_agendamento, zip_file_path, host, porta, pasta_destino_receiver):
+def SendRPAData(id_agendamento, zip_file_path, host, host_secondary, porta, pasta_destino_receiver):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
         try:
+            print('Iniciando tentativa de comunicação primaria com o Host Destino.')
             client_socket.connect((host, porta))
 
             # Envia o nome do arquivo ZIP como bytes
@@ -43,6 +44,42 @@ def SendRPAData(id_agendamento, zip_file_path, host, porta, pasta_destino_receiv
             resposta_servidor = f"Erro ao enviar arquivo ZIP: {e}"
             print(resposta_servidor)
 
+            try:
+                print('Iniciando tentativa de comunicação secundaria com o Host Destino.')
+                client_socket.connect((host_secondary, porta))
+
+                # Envia o nome do arquivo ZIP como bytes
+                zip_file_name = os.path.basename(zip_file_path).encode()
+                client_socket.sendall(len(zip_file_name).to_bytes(4, byteorder='big'))
+                client_socket.sendall(zip_file_name)
+
+                # Envia o caminho do diretório de destino como bytes
+                pasta_destino_receiver_bytes = pasta_destino_receiver.encode()
+                client_socket.sendall(len(pasta_destino_receiver_bytes).to_bytes(4, byteorder='big'))
+                client_socket.sendall(pasta_destino_receiver_bytes)
+
+                # Aguarda a confirmação do servidor para enviar o conteúdo
+                resposta_servidor = client_socket.recv(1024).decode()
+                if resposta_servidor != 'PRONTO':
+                    print(f"Servidor não está pronto para receber o conteúdo. Resposta: {resposta_servidor}")
+                    return
+
+                # Envia o conteúdo do arquivo ZIP
+                with open(zip_file_path, 'rb') as zip_file:
+                    data = zip_file.read(1024)
+                    while data:
+                        client_socket.sendall(data)
+                        data = zip_file.read(1024)
+
+                # Informa o servidor que a transmissão está concluída
+                client_socket.sendall(b'FIM')
+
+                # Aguarda a resposta do servidor
+                resposta_servidor = client_socket.recv(1024).decode()
+                print(resposta_servidor)
+            except Exception as e:
+                resposta_servidor = f"Erro ao enviar arquivo ZIP: {e}"
+                print(resposta_servidor)
         finally:
             # Fecha explicitamente a conexão
             client_socket.close()

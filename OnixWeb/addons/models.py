@@ -22,6 +22,7 @@ class Empresas(db.Model):
     licensed_until = db.Column(db.DateTime())
     autorizado_schedule = db.Column(db.Integer, default=0)
     receiver_ip = db.Column(db.String(64))
+    receiver_ip_secondary = db.Column(db.String(64))
     receiver_port = db.Column(db.Integer)
 
     def __init__(self, **kwargs):

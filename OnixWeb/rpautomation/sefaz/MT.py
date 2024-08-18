@@ -861,28 +861,73 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
                 print(
                     f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
 
+                '######### ZIPA PASTA ESPECIFICA E ENVIA #############'
+
+                caminhoZip = os.path.join(caminho_pasta, nome_empresa)
+
+                try:
+                    shutil.make_archive(caminhoZip, 'zip', caminhoZip)
+                    includeLogData(nome_thread,
+                                   f'ARQUIVO ZIP EMPRESA',
+                                   'Arquivo gerado e disponível!',
+                                   'BOT',
+                                   'BOT',
+                                   'primary-gradient',
+                                   'SUCESSO',
+                                   'success-gradient')
+                    setPercentilProcesso(nome_thread, 100)
+                except Exception as e:
+                    print(f"Ocorreu um erro ao zipar a pasta: {e}")
+                    includeLogData(nome_thread,
+                                   f'ARQUIVO ZIP EMPRESA',
+                                   'Erro ao gerar arquivo!',
+                                   'BOT',
+                                   'RPA',
+                                   'primary-gradient',
+                                   'ERRO',
+                                   'danger-gradient')
+
+                DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
+                if DadosEmpresaEnvio.autorizado_schedule:
+                    pathEnvio = dadosAgendamento.path_receiver
+                    receiver_ip = DadosEmpresaEnvio.receiver_ip
+                    receiver_ip_secondary = DadosEmpresaEnvio.receiver_ip_secondary
+                    receiver_port = DadosEmpresaEnvio.receiver_port
+                    zipData = os.path.join(fr"{caminhoZip}.zip")
+
+                    print('Iniciando envio para:')
+                    print(f'IP Primario: {receiver_ip}')
+                    print(f'IP Secundario: {receiver_ip_secondary}')
+                    print(f'Porta: {receiver_port}')
+                    print(f'zipDataPath: {zipData}')
+                    print(f'ReceiverPath: {pathEnvio}')
+                    SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_ip_secondary, receiver_port, pathEnvio)
+
+                    print('Envio Finalizado!')
+
+
         '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
-        try:
-            shutil.make_archive(caminho_pasta, 'zip', caminho_pasta)
-            includeLogData(nome_thread,
-                           f'ARQUIVO FINAL',
-                           'Arquivo gerado e disponível!',
-                           'BOT',
-                           'BOT',
-                           'primary-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-            setPercentilProcesso(nome_thread, 100)
-        except Exception as e:
-            print(f"Ocorreu um erro ao zipar a pasta: {e}")
-            includeLogData(nome_thread,
-                           f'ARQUIVO FINAL',
-                           'Erro ao gerar arquivo!',
-                           'BOT',
-                           'RPA',
-                           'primary-gradient',
-                           'ERRO',
-                           'danger-gradient')
+        # try:
+        #     shutil.make_archive(caminho_pasta, 'zip', caminho_pasta)
+        #     includeLogData(nome_thread,
+        #                    f'ARQUIVO FINAL',
+        #                    'Arquivo gerado e disponível!',
+        #                    'BOT',
+        #                    'BOT',
+        #                    'primary-gradient',
+        #                    'SUCESSO',
+        #                    'success-gradient')
+        #     setPercentilProcesso(nome_thread, 100)
+        # except Exception as e:
+        #     print(f"Ocorreu um erro ao zipar a pasta: {e}")
+        #     includeLogData(nome_thread,
+        #                    f'ARQUIVO FINAL',
+        #                    'Erro ao gerar arquivo!',
+        #                    'BOT',
+        #                    'RPA',
+        #                    'primary-gradient',
+        #                    'ERRO',
+        #                    'danger-gradient')
 
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
         if dadosAgendamento.in_repeat:
@@ -897,21 +942,21 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
         sleep(5)
 
         '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
-        DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
-        if DadosEmpresaEnvio.autorizado_schedule:
-            pathEnvio = dadosAgendamento.path_receiver
-            receiver_ip = DadosEmpresaEnvio.receiver_ip
-            receiver_port = DadosEmpresaEnvio.receiver_port
-            zipData = os.path.join(root_path, fr"OnixWeb\rpautomation\transactionFiles\{nome_thread}.zip")
-
-            print('Iniciando envio para:')
-            print(f'IP: {receiver_ip}')
-            print(f'Porta: {receiver_port}')
-            print(f'zipDataPath: {zipData}')
-            print(f'ReceiverPath: {pathEnvio}')
-            SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_port, pathEnvio)
-
-            print('Envio Finalizado!')
+        # DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
+        # if DadosEmpresaEnvio.autorizado_schedule:
+        #     pathEnvio = dadosAgendamento.path_receiver
+        #     receiver_ip = DadosEmpresaEnvio.receiver_ip
+        #     receiver_port = DadosEmpresaEnvio.receiver_port
+        #     zipData = os.path.join(root_path, fr"OnixWeb\rpautomation\transactionFiles\{nome_thread}.zip")
+        #
+        #     print('Iniciando envio para:')
+        #     print(f'IP: {receiver_ip}')
+        #     print(f'Porta: {receiver_port}')
+        #     print(f'zipDataPath: {zipData}')
+        #     print(f'ReceiverPath: {pathEnvio}')
+        #     SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_port, pathEnvio)
+        #
+        #     print('Envio Finalizado!')
 
 
 def dadosPessoasPF(listaPessoas, EmpresaExec):
@@ -961,14 +1006,12 @@ def IniciarDriver():
     # chrome_options.add_argument('--headless')
     #chrome_options.add_argument("--incognito")
 
-
     # chrome_options.add_argument('--window-size=1080,900')
     chrome_options.add_argument("start-maximized")
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-
 
     # Carregar a extensão
     chrome_extension_path = os.path.join(root_path, "OnixWeb", "rpautomation", "dependencias", "chrome_extension")
@@ -1444,7 +1487,6 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                        'warning-gradient',
                        'SUCESSO',
                        'success-gradient')
-
 
 
 def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
