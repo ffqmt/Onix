@@ -5,13 +5,69 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="584cf1f5-1b8a-4250-8cd5-3138542327c5" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/Onix.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Onix.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/OnixWeb/addons/OnixSender.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/addons/OnixSender.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/OnixWeb/addons/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/addons/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/OnixWeb/onixTestDB.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/onixTestDB.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/dependencias/chromedriver/chromedriver-win64/THIRD_PARTY_NOTICES.chromedriver" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/dependencias/chromedriver/chromedriver-win64/THIRD_PARTY_NOTICES.chromedriver" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/dependencias/chromedriver/chromedriver-win64/chromedriver.exe" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/dependencias/chromedriver/chromedriver-win64/chromedriver.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/dependencias/chromedriver/chromedriver.exe" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/dependencias/chromedriver/chromedriver.exe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/prefeituras/MT_1.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/prefeituras/MT_1.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha.png" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha_tratado.png" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/CaptchaSolver/recaptcha_tratado.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/MT.py" beforeDir="false" afterPath="$PROJECT_DIR$/OnixWeb/rpautomation/sefaz/MT.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/CT-e Tomador.xlsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/69d4578446c8be3bcf1c562c41fd18ef581746fc86fd015e5934b19f975f0b79/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/CT-e Tomador.xlsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bbcaa64576d9bce6e21f50a92df7976000d78592f995df9756ee79ea2883cbe8/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/CT-e Tomador.xlsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO FRANCISCO - 138869820/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/CT-e Tomador.xlsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS - FAZENDA SÃO MIGUEL ARCANJO I - 135646332/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS E OUTRA - FAZENDA SANTA MARIA II - 139066292.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS E OUTRA - FAZENDA SANTA MARIA II - 139066292/2024/08/CT-e Tomador.xlsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS E OUTRA - FAZENDA SANTA MARIA II - 139066292/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS E OUTRA - FAZENDA SANTA MARIA II - 139066292/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/OTAVIO PALMEIRA DOS SANTOS E OUTRA - FAZENDA SANTA MARIA II - 139066292/2024/08/Sefaz-Entradas.xls" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAMELLA SCARANELLO PIMENTEL - FAZENDA BEIJA FLOR - 137385820.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAMELLA SCARANELLO PIMENTEL - FAZENDA BEIJA FLOR - 137385820/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAMELLA SCARANELLO PIMENTEL - FAZENDA BEIJA FLOR - 137385820/2024/08/CTe-Sem-Tomados.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAMELLA SCARANELLO PIMENTEL - FAZENDA BEIJA FLOR - 137385820/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAMELLA SCARANELLO PIMENTEL - FAZENDA BEIJA FLOR - 137385820/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO CESAR BORGHETTI - FAZENDA SANDRA - 132440954.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO CESAR BORGHETTI - FAZENDA SANDRA - 132440954/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO CESAR BORGHETTI - FAZENDA SANDRA - 132440954/2024/08/CTe-Sem-Tomados.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO CESAR BORGHETTI - FAZENDA SANDRA - 132440954/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO CESAR BORGHETTI - FAZENDA SANDRA - 132440954/2024/08/Sefaz-Entradas.xls" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO ZANONI - FAZENDA ZANONI II - 135730406.zip" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO ZANONI - FAZENDA ZANONI II - 135730406/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO ZANONI - FAZENDA ZANONI II - 135730406/2024/08/CTe-Sem-Tomados.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO ZANONI - FAZENDA ZANONI II - 135730406/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PAULO ZANONI - FAZENDA ZANONI II - 135730406/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PEDRO HERMES LOCATELLI - FAZENDA MARUMBI - 132368200/2024/08/CTe-Sem-Emissoes.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PEDRO HERMES LOCATELLI - FAZENDA MARUMBI - 132368200/2024/08/CTe-Sem-Tomados.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PEDRO HERMES LOCATELLI - FAZENDA MARUMBI - 132368200/2024/08/NFe-Sem-Entradas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OnixWeb/rpautomation/transactionFiles/bca7d8bf3f2cf1c03eac21613f09961470ca6a80990080826be63f21c7c8e62e/PEDRO HERMES LOCATELLI - FAZENDA MARUMBI - 132368200/2024/08/NFe-Sem-Saidas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log.txt" beforeDir="false" afterPath="$PROJECT_DIR$/log.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -132,7 +188,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-d68999036c7f-d3b881c8e49f-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-233.14475.56" />
+        <option value="bundled-python-sdk-98f27166c754-ba05f1cad1b1-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-242.21829.153" />
       </set>
     </attachedChunks>
   </component>

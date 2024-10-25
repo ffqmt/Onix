@@ -889,7 +889,7 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
 
                 DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
                 if DadosEmpresaEnvio.autorizado_schedule:
-                    pathEnvio = dadosAgendamento.path_receiver
+                    pathEnvio = fr"{dadosAgendamento.path_receiver}\{nome_empresa}"
                     receiver_ip = DadosEmpresaEnvio.receiver_ip
                     receiver_ip_secondary = DadosEmpresaEnvio.receiver_ip_secondary
                     receiver_port = DadosEmpresaEnvio.receiver_port
@@ -1040,24 +1040,24 @@ def IniciarDriver():
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
     driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": user_agent})
 
-    # Remover o webdriver dos atributos do navegador
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': '''
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-                Object.defineProperty(navigator, 'plugins', {
-                    get: () => {
-                        0: { name: "Chrome PDF Viewer", filename: "internal-pdf-viewer" },
-                        1: { name: "Chrome PDF Plugin", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai" },
-                        2: { name: "Widevine Content Decryption Module", filename: "widevinecdmadapter" }
-                    }
-                });
-                Object.defineProperty(navigator, 'languages', {
-                    get: () => ['pt-BR', 'pt']
-                });
-            '''
-    })
+    ## Remover o webdriver dos atributos do navegador
+    # driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+    #     'source': '''
+    #             Object.defineProperty(navigator, 'webdriver', {
+    #                 get: () => undefined
+    #             });
+    #             Object.defineProperty(navigator, 'plugins', {
+    #                 get: () => {
+    #                     0: { name: "Chrome PDF Viewer", filename: "internal-pdf-viewer" },
+    #                     1: { name: "Chrome PDF Plugin", filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai" },
+    #                     2: { name: "Widevine Content Decryption Module", filename: "widevinecdmadapter" }
+    #                 }
+    #             });
+    #             Object.defineProperty(navigator, 'languages', {
+    #                 get: () => ['pt-BR', 'pt']
+    #             });
+    #         '''
+    # })
 
     # driver.get("https://bot.sannysoft.com/")
     # sleep(10000)

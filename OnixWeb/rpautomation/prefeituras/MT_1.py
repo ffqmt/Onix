@@ -676,6 +676,7 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
         if DadosEmpresaEnvio.autorizado_schedule:
             pathEnvio = dadosAgendamento.path_receiver
             receiver_ip = DadosEmpresaEnvio.receiver_ip
+            receiver_ip_secondary = DadosEmpresaEnvio.receiver_ip_secondary
             receiver_port = DadosEmpresaEnvio.receiver_port
             zipData = os.path.join(root_path, fr"OnixWeb\rpautomation\transactionFiles\{nome_thread}.zip")
 
@@ -684,7 +685,7 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
             print(f'Porta: {receiver_port}')
             print(f'zipDataPath: {zipData}')
             print(f'ReceiverPath: {pathEnvio}')
-            SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_port, pathEnvio)
+            SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_ip_secondary, receiver_port, pathEnvio)
 
             print('Envio Finalizado!')
 
