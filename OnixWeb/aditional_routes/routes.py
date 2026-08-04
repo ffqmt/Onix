@@ -16,7 +16,7 @@ from flask_login import (
 from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 
-from OnixWeb import db, login_manager
+from OnixWeb import db, login_manager, csrf
 from OnixWeb.addons.agendamentos import scheduler, agendamentoAddSchenduler
 from OnixWeb.addons.util import get_segment, log_message
 from OnixWeb.aditional_routes import blueprint
@@ -27,6 +27,15 @@ from OnixWeb.rpautomation.sefaz import MT
 
 basedir = os.path.abspath('')
 root_path = os.path.abspath('')
+
+CUSTOM_DB_PATH = None
+CUSTOM_ROOT_PATH = None
+
+def get_root_path():
+    global CUSTOM_ROOT_PATH
+    if CUSTOM_ROOT_PATH:
+        return CUSTOM_ROOT_PATH
+    return root_path
 
 
 def checkOnOff(x):
@@ -679,7 +688,7 @@ def fetchlog(logname):
             if ThreadFind.id_empresa == current_user.empresa.id:
                 arquivo = f"{ThreadFind.thread_name}" + ".zip"
                 nome_arquivo = F'{ThreadFind.nome_arquivo} - {ThreadFind.data_exec.strftime("%d-%m-%Y %H:%M:%S")}' + ".zip"
-                caminho_arquivo = f'{root_path}/OnixWeb/rpautomation/transactionFiles/' + arquivo
+                caminho_arquivo = f'{get_root_path()}/OnixWeb/rpautomation/transactionFiles/' + arquivo
                 response_download = make_response(
                     send_file(caminho_arquivo, download_name=nome_arquivo, as_attachment=True))
                 response_download.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -966,3 +975,474 @@ def fetchEditAgeHo():
     response.headers['title'] = 'Alterando Horário!'
     response.headers['message'] = f'O agendamento {edit.id} esta sendo alterado!'
     return response
+
+
+@blueprint.route('/api/empresas', methods=['GET'])
+def api_empresas():
+    try:
+        from flask_login import current_user
+
+        # Filtra: ativo (active=1) E com pelo menos um processo SEFAZ habilitado
+        sefaz_filter = or_(
+            PessoaJuridica.sefaz_nfe_saida   == True,
+            PessoaJuridica.sefaz_nfe_entrada  == True,
+            PessoaJuridica.sefaz_cte_emitido  == True,
+            PessoaJuridica.sefaz_cte_tomado   == True,
+            PessoaJuridica.sefaz_nfce         == True,
+        )
+        query_pj = PessoaJuridica.query.filter(
+            PessoaJuridica.active == True,
+            sefaz_filter
+        )
+        if current_user and current_user.is_authenticated:
+            query_pj = query_pj.filter_by(id_empresa=current_user.empresa.id)
+        empresas_pj = query_pj.all()
+
+        sefaz_filter_pf = or_(
+            PessoaFisica.sefaz_nfe_saida   == True,
+            PessoaFisica.sefaz_nfe_entrada  == True,
+            PessoaFisica.sefaz_cte_emitido  == True,
+            PessoaFisica.sefaz_cte_tomado   == True,
+            PessoaFisica.sefaz_nfce         == True,
+        )
+        query_pf = PessoaFisica.query.filter(
+            PessoaFisica.active == True,
+            sefaz_filter_pf
+        )
+        if current_user and current_user.is_authenticated:
+            query_pf = query_pf.filter_by(id_empresa=current_user.empresa.id)
+        empresas_pf = query_pf.all()
+        
+        lista = []
+        for emp in empresas_pj:
+            lista.append({
+                "id": emp.id,
+                "cnpj": emp.cnpj_cpf,
+                "name": emp.name,
+                "ie": emp.ie,
+                "tipo": "PJ",
+                "sefaz_nfe_saida": emp.sefaz_nfe_saida,
+                "sefaz_nfe_entrada": emp.sefaz_nfe_entrada,
+                "sefaz_cte_emitido": emp.sefaz_cte_emitido,
+                "sefaz_cte_tomado": emp.sefaz_cte_tomado,
+                "sefaz_nfce": emp.sefaz_nfce
+            })
+            
+        for emp in empresas_pf:
+            lista.append({
+                "id": emp.id,
+                "cnpj": emp.cnpj_cpf,
+                "name": emp.name,
+                "ie": emp.ie,
+                "tipo": "PF",
+                "sefaz_nfe_saida": emp.sefaz_nfe_saida,
+                "sefaz_nfe_entrada": emp.sefaz_nfe_entrada,
+                "sefaz_cte_emitido": emp.sefaz_cte_emitido,
+                "sefaz_cte_tomado": emp.sefaz_cte_tomado,
+                "sefaz_nfce": emp.sefaz_nfce
+            })
+            
+        return jsonify({"success": True, "empresas": lista})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/salvar-comprovante', methods=['POST'])
+@csrf.exempt
+def api_salvar_comprovante():
+    try:
+        dados = request.get_json()
+        cnpj = dados.get('cnpj')
+        process = dados.get('process')
+        month = dados.get('month')
+        year = dados.get('year')
+        filename = dados.get('filename')
+        base64_data = dados.get('base64Data')
+        run_id = dados.get('runId', 'ExtensionRun')
+        tipo = dados.get('tipo')
+
+        if ',' in base64_data:
+            base64_data = base64_data.split(',')[1]
+
+        import base64
+        file_bytes = base64.b64decode(base64_data)
+
+        # Get company name and folder type
+        tipo_pasta = "FISCAL PJ"
+        empresa = PessoaJuridica.query.filter_by(cnpj_cpf=cnpj).first()
+        if empresa:
+            nome_empresa = empresa.name
+            tipo_pasta = "FISCAL PJ"
+        else:
+            empresa_pf = PessoaFisica.query.filter_by(cnpj_cpf=cnpj).first()
+            if empresa_pf:
+                nome_empresa = empresa_pf.name
+                tipo_pasta = "RURAL"
+            else:
+                nome_empresa = cnpj
+                if tipo == 'PF' or len(cnpj) == 11:
+                    tipo_pasta = "RURAL"
+                else:
+                    tipo_pasta = "FISCAL PJ"
+
+        # Target directory structure
+        month_str = str(month).zfill(2)
+        pasta_destino = os.path.join(get_root_path(), 'OnixWeb', 'rpautomation', 'transactionFiles', run_id, nome_empresa, tipo_pasta, str(year), month_str, "Relatórios")
+        os.makedirs(pasta_destino, exist_ok=True)
+
+        target_path = os.path.join(pasta_destino, filename)
+        with open(target_path, 'wb') as f:
+            f.write(file_bytes)
+
+        return jsonify({"success": True, "message": f"Comprovante salvo com sucesso em {target_path}"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/registrar-download', methods=['POST'])
+@csrf.exempt
+def api_registrar_download():
+    try:
+        dados = request.get_json()
+        cnpj = dados.get('cnpj')
+        process = dados.get('process')
+        month = dados.get('month')
+        year = dados.get('year')
+        filename = dados.get('filename') # relative path (e.g. "OnixDownloads/...")
+        run_id = dados.get('runId', 'ExtensionRun')
+        tipo = dados.get('tipo')
+
+        import os
+        downloads_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
+        source_path = os.path.join(downloads_dir, filename.replace('/', os.sep))
+
+        # Get company name and folder type
+        tipo_pasta = "FISCAL PJ"
+        empresa = PessoaJuridica.query.filter_by(cnpj_cpf=cnpj).first()
+        if empresa:
+            nome_empresa = empresa.name
+            tipo_pasta = "FISCAL PJ"
+        else:
+            empresa_pf = PessoaFisica.query.filter_by(cnpj_cpf=cnpj).first()
+            if empresa_pf:
+                nome_empresa = empresa_pf.name
+                tipo_pasta = "RURAL"
+            else:
+                nome_empresa = cnpj
+                if tipo == 'PF' or len(cnpj) == 11:
+                    tipo_pasta = "RURAL"
+                else:
+                    tipo_pasta = "FISCAL PJ"
+
+        # Target directory matching original MT.py structure
+        month_str = str(month).zfill(2)
+        pasta_destino = os.path.join(get_root_path(), 'OnixWeb', 'rpautomation', 'transactionFiles', run_id, nome_empresa, tipo_pasta, str(year), month_str, "Relatórios")
+        os.makedirs(pasta_destino, exist_ok=True)
+
+        # Map target filename based on process to match original MT.py outputs perfectly!
+        ext = os.path.splitext(source_path)[1] # e.g. .xlsx or .xls or .zip
+        target_name = "Relatorio" + ext
+        if process == 'nfe_saida':
+            target_name = "Sefaz-Saidas" + ext
+        elif process == 'nfe_entrada':
+            target_name = "Sefaz-Entradas" + ext
+        elif process == 'cte_emissor':
+            target_name = "CT-e Emissor" + ext
+        elif process == 'cte_tomador':
+            target_name = "CT-e Tomador" + ext
+        elif process == 'nfce':
+            target_name = "NFCe Emitidas" + ext
+
+        target_path = os.path.join(pasta_destino, target_name)
+
+        # Wait and move file
+        import shutil
+        import time
+        moved = False
+        for _ in range(30): # Wait up to 30 seconds for chrome download to finish
+            if os.path.exists(source_path) and os.path.getsize(source_path) > 0:
+                try:
+                    # Clean target path if it already exists
+                    if os.path.exists(target_path):
+                        os.remove(target_path)
+                    shutil.move(source_path, target_path)
+                    moved = True
+                    break
+                except Exception as move_err:
+                    print("Move error, retrying...", move_err)
+            time.sleep(1)
+
+        if moved:
+            # ── Tratamento especial do ZIP NFCe (replica MT.py exec_NFCE) ────────────
+            if process == 'nfce' and ext.lower() == '.zip':
+                try:
+                    import zipfile
+                    import glob as glob_mod
+
+                    # Passo 1: remover planilhas antigas antes de extrair (MT.py faz isso)
+                    for old_f in (glob_mod.glob(os.path.join(pasta_destino, '*.xls')) +
+                                  glob_mod.glob(os.path.join(pasta_destino, '*.xlsx'))):
+                        bn = os.path.basename(old_f)
+                        if 'Planilha' in bn or 'NFCe Emitidas' in bn:
+                            try:
+                                os.remove(old_f)
+                            except Exception:
+                                pass
+
+                    # Passo 2: extrair ZIP para pasta de destino
+                    with zipfile.ZipFile(target_path, 'r') as zip_ref:
+                        zip_ref.extractall(pasta_destino)
+
+                    # Passo 3: deletar o ZIP (já extraído — MT.py não mantém o zip)
+                    if os.path.exists(target_path):
+                        os.remove(target_path)
+
+                    # Passo 4: encontrar a planilha extraída e renomear para "NFCe Emitidas.xls"
+                    # Busca recursiva para cobrir ZIPs com subpastas internas
+                    # Padrão MT.py: NomeParcialPlanilha = 'Planilha'
+                    extracted_renamed = False
+                    candidatos = (
+                        glob_mod.glob(os.path.join(pasta_destino, '**', '*.xls'),  recursive=True) +
+                        glob_mod.glob(os.path.join(pasta_destino, '**', '*.xlsx'), recursive=True)
+                    )
+                    for arq_p in candidatos:
+                        bn = os.path.basename(arq_p)
+                        if 'Planilha' in bn or 'ConsultaNFCe' in bn or 'NFCeEmitida' in bn:
+                            novo_nome = os.path.join(pasta_destino, 'NFCe Emitidas.xls')
+                            if os.path.exists(novo_nome):
+                                os.remove(novo_nome)
+                            shutil.move(arq_p, novo_nome)
+                            extracted_renamed = True
+                            break
+
+                    if extracted_renamed:
+                        return jsonify({
+                            "success": True,
+                            "message": f"NFCe ZIP extraído e planilha salva como 'NFCe Emitidas.xls' em {pasta_destino}"
+                        })
+                    else:
+                        # ZIP extraído mas planilha não encontrada pelo padrão esperado
+                        # Registrar quais arquivos foram extraídos para diagnóstico
+                        restantes = [os.path.basename(f) for f in
+                                     glob_mod.glob(os.path.join(pasta_destino, '**', '*.*'), recursive=True)]
+                        print(f"[NFCe] ZIP extraído mas planilha não localizada. Arquivos em pasta: {restantes}")
+                        return jsonify({
+                            "success": True,
+                            "message": f"ZIP extraído mas planilha não renomeada. Arquivos presentes: {restantes}"
+                        })
+
+                except Exception as zip_err:
+                    print(f"[NFCe] Erro ao processar ZIP: {zip_err}")
+                    # Manter o ZIP em caso de erro para diagnóstico manual
+                    return jsonify({"success": False, "error": f"Erro ao extrair ZIP NFCe: {str(zip_err)}"}), 500
+
+            return jsonify({"success": True, "message": f"Arquivo sincronizado com sucesso em {target_path}"})
+        else:
+            return jsonify({"success": False, "error": f"Arquivo não encontrado em {source_path}"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/iniciar-rpa', methods=['POST'])
+@csrf.exempt
+def api_iniciar_rpa():
+    try:
+        dados = request.get_json()
+        run_id = dados.get('runId')
+        
+        # Add or reset in ThreadingCounter
+        counter = ThreadingCounter.query.filter_by(thread_name=run_id).first()
+        if not counter:
+            counter = ThreadingCounter()
+            counter.thread_name = run_id
+            counter.percentil = 5
+            db.session.add(counter)
+        else:
+            counter.percentil = 5
+        db.session.commit()
+
+        # Add initial log entry matching Selenium script logs
+        data = logData()
+        data.thread_name = run_id
+        data.log_title = "RPA INICIADO"
+        data.log_desc = "Automação iniciada via Extensão Chrome Manifest V3 (Bypass WAF)."
+        data.cnpj_cpf = "BOT"
+        data.data = datetime.now()
+        data.tipo = "BOT"
+        data.bg_tipo = "primary-gradient"
+        data.status = "SUCESSO"
+        data.bg_status = "success-gradient"
+        db.session.add(data)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "Fila iniciada e registrada no banco de dados."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/log-rpa', methods=['POST'])
+@csrf.exempt
+def api_log_rpa():
+    try:
+        dados = request.get_json()
+        run_id = dados.get('runId')
+        log_title = dados.get('log_title')
+        log_desc = dados.get('log_desc')
+        cnpj_cpf = dados.get('cnpj_cpf', 'BOT')
+        tipo = dados.get('tipo', 'BOT')
+        bg_tipo = dados.get('bg_tipo', 'primary-gradient')
+        status = dados.get('status', 'SUCESSO')
+        bg_status = dados.get('bg_status', 'success-gradient')
+
+        data = logData()
+        data.thread_name = run_id
+        data.log_title = log_title
+        data.log_desc = log_desc
+        data.cnpj_cpf = cnpj_cpf
+        data.data = datetime.now()
+        data.tipo = tipo
+        data.bg_tipo = bg_tipo
+        data.status = status
+        data.bg_status = bg_status
+        db.session.add(data)
+        db.session.commit()
+
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/update-progress', methods=['POST'])
+@csrf.exempt
+def api_update_progress():
+    try:
+        dados = request.get_json()
+        run_id = dados.get('runId')
+        percentil = dados.get('percentil')
+
+        counter = ThreadingCounter.query.filter_by(thread_name=run_id).first()
+        if counter:
+            counter.percentil = int(percentil)
+            db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/finalizar-rpa', methods=['POST'])
+@csrf.exempt
+def api_finalizar_rpa():
+    try:
+        dados = request.get_json()
+        run_id = dados.get('runId')
+
+        # Zip transactionFiles/{run_id} folder to transactionFiles/{run_id}.zip
+        caminho_pasta = os.path.join(get_root_path(), 'OnixWeb', 'rpautomation', 'transactionFiles', run_id)
+        
+        # Check if directory exists
+        if os.path.exists(caminho_pasta):
+            import shutil
+            # Make zip file C:\Onix\Onix\OnixWeb\rpautomation\transactionFiles\{run_id}.zip
+            shutil.make_archive(caminho_pasta, 'zip', caminho_pasta)
+            
+            # Clean up unzipped folder
+            shutil.rmtree(caminho_pasta, ignore_errors=True)
+
+        # Update ThreadingCounter to 100
+        counter = ThreadingCounter.query.filter_by(thread_name=run_id).first()
+        if counter:
+            counter.percentil = 100
+            db.session.commit()
+
+        # Add final log entry
+        data = logData()
+        data.thread_name = run_id
+        data.log_title = "RPA FINALIZADO"
+        data.log_desc = "Fila e processos concluídos. Arquivo ZIP de relatórios gerado e disponível!"
+        data.cnpj_cpf = "BOT"
+        data.data = datetime.now()
+        data.tipo = "BOT"
+        data.bg_tipo = "primary-gradient"
+        data.status = "SUCESSO"
+        data.bg_status = "success-gradient"
+        db.session.add(data)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": f"Fila concluída e ZIP gerado para a execução {run_id}."})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/configurar-servidor', methods=['POST'])
+@csrf.exempt
+def api_configurar_servidor():
+    try:
+        from flask import current_app
+        from sqlalchemy import create_engine
+        
+        dados = request.get_json()
+        db_path = dados.get('dbPath')
+        custom_root = dados.get('rootPath')
+        
+        global CUSTOM_DB_PATH, CUSTOM_ROOT_PATH
+        
+        response_messages = []
+        
+        if db_path:
+            db_path = db_path.strip()
+            abs_db_path = os.path.abspath(db_path)
+            new_uri = 'sqlite:///' + abs_db_path
+            
+            # Atualizar URI da base de dados do Flask
+            current_app.config['SQLALCHEMY_DATABASE_URI'] = new_uri
+            
+            # Desconectar conexões antigas do banco
+            db.engine.dispose()
+            
+            # Recriar engine e vincular à sessão
+            db.engine = create_engine(new_uri)
+            db.session.remove()
+            db.session.configure(bind=db.engine)
+            
+            # Garantir existência de tabelas caso seja nova base
+            db.create_all()
+            
+            CUSTOM_DB_PATH = abs_db_path
+            response_messages.append(f"Banco alterado para: {abs_db_path}")
+            
+        if custom_root:
+            custom_root = custom_root.strip()
+            abs_root = os.path.abspath(custom_root)
+            os.makedirs(abs_root, exist_ok=True)
+            CUSTOM_ROOT_PATH = abs_root
+            response_messages.append(f"Pasta alterada para: {abs_root}")
+            
+        db_current = CUSTOM_DB_PATH if CUSTOM_DB_PATH else current_app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
+        root_current = CUSTOM_ROOT_PATH if CUSTOM_ROOT_PATH else os.path.abspath('')
+        
+        return jsonify({
+            "success": True, 
+            "message": " | ".join(response_messages) if response_messages else "Configurações sincronizadas.",
+            "dbPath": os.path.abspath(db_current),
+            "rootPath": os.path.abspath(root_current)
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@blueprint.route('/api/configurar-servidor', methods=['GET'])
+def api_obter_configuracao():
+    try:
+        from flask import current_app
+        global CUSTOM_DB_PATH, CUSTOM_ROOT_PATH
+        
+        db_current = CUSTOM_DB_PATH if CUSTOM_DB_PATH else current_app.config['SQLALCHEMY_DATABASE_URI'].replace('sqlite:///', '')
+        root_current = CUSTOM_ROOT_PATH if CUSTOM_ROOT_PATH else os.path.abspath('')
+        
+        return jsonify({
+            "success": True,
+            "dbPath": os.path.abspath(db_current),
+            "rootPath": os.path.abspath(root_current)
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

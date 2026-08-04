@@ -127,7 +127,7 @@ def login():
     return redirect(url_for('authentication_blueprint.route_default'))
 
 
-@blueprint.route('/register', methods=['GET', 'POST'])
+@blueprint.route('/!@#&!(#!@#!@#!', methods=['GET', 'POST'])
 def register():
     segment = get_segment(request)
     if 'register' in request.form:

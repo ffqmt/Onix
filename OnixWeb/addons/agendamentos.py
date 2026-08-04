@@ -76,9 +76,23 @@ def chamaExec(agendamentoID):
             cidade = City.query.filter_by(id=idCidUF).first()
             callExec = getattr(globals()[cidade.uf + '_' + f"{cidade.id}"], 'MainExecution_Agendamentos', None)
             if callExec is not None and callable(callExec):
+                processos_str = agendamento.processos_inclusos.strip('[]')
+                processos_inclusos = [p.strip().strip('"') for p in processos_str.split(',')]
+
+                # Criando dicionário de parâmetros
+                listaParametros = {
+                    'enc_taken': 'enc_tomado' in processos_inclusos,
+                    'enc_provided': 'enc_prestado' in processos_inclusos,
+                    'issqn': 'guia_issqn' in processos_inclusos,
+                    'taken': 'rel_tomado' in processos_inclusos,
+                    'provided': 'rel_prestado' in processos_inclusos,
+                    'nfe_taken': 'nfe_tomado' in processos_inclusos,
+                    'nfe_provided': 'nfe_prestado' in processos_inclusos
+                }
+
                 t = threading.Thread(target=callExec,
                                      name=f"{codigo_unico}",
-                                     args=(idAgendamento, cidade.id)
+                                     args=(idAgendamento, listaParametros, idCidUF)  # Ordem correta dos argumentos
                                      )
                 t.start()
 

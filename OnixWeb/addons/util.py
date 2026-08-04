@@ -13,29 +13,29 @@ from webdriver_auto_update.webdriver_manager import WebDriverManager
 
 
 def hash_pass(password):
-    # return password  # SEM ENCRYPT
+    return password  # SEM ENCRYPT
 
-    # PARA ENCRYPT
-    salt = hashlib.sha256(os.urandom(60)).hexdigest().encode('ascii')
-    pwdhash = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'),
-                                  salt, 100000)
-    pwdhash = binascii.hexlify(pwdhash)
-    return salt + pwdhash  # return bytes
+    '# PARA ENCRYPT'
+    # salt = hashlib.sha256(os.urandom(60)).hexdigest().encode('ascii')
+    # pwdhash = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'),
+    #                               salt, 100000)
+    # pwdhash = binascii.hexlify(pwdhash)
+    # return salt + pwdhash  # return bytes
 
 
 def verify_pass(provided_password, stored_password):
-    # return provided_password == stored_password  # SEM ENCRYPT
+    return provided_password == stored_password  # SEM ENCRYPT
 
-    # PARA ENCRYPT
-    stored_password = stored_password.decode('ascii')
-    salt = stored_password[:64]
-    stored_password = stored_password[64:]
-    pwdhash = hashlib.pbkdf2_hmac('sha512',
-                                  provided_password.encode('utf-8'),
-                                  salt.encode('ascii'),
-                                  100000)
-    pwdhash = binascii.hexlify(pwdhash).decode('ascii')
-    return pwdhash == stored_password
+    '# PARA ENCRYPT'
+    # stored_password = stored_password.decode('ascii')
+    # salt = stored_password[:64]
+    # stored_password = stored_password[64:]
+    # pwdhash = hashlib.pbkdf2_hmac('sha512',
+    #                               provided_password.encode('utf-8'),
+    #                               salt.encode('ascii'),
+    #                               100000)
+    # pwdhash = binascii.hexlify(pwdhash).decode('ascii')
+    # return pwdhash == stored_password
 
 
 def get_segment(request_page):

@@ -42,6 +42,8 @@ def configure_database(app):
 
 def create_app(config):
     app = Flask(__name__)
+    from flask_cors import CORS
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
     csrf.init_app(app)
     app.config.from_object(config)
     register_extensions(app)

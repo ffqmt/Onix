@@ -4,7 +4,8 @@ import threading
 import PyPDF2
 import pandas as pd
 from selenium import webdriver
-from selenium.common import NoSuchElementException, ElementNotInteractableException, TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common import NoSuchElementException, ElementNotInteractableException, TimeoutException, NoSuchWindowException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.chrome.service import Service
@@ -20,6 +21,9 @@ import glob
 from selenium.webdriver.common.action_chains import ActionChains
 import os
 import zipfile
+import requests
+import calendar
+import time
 
 from OnixWeb.addons.OnixSender import SendRPAData
 # from apps.authentication.models import Companies, ReportsRefreshControl, FilesParameters
@@ -28,6 +32,29 @@ from OnixWeb.addons.appscontext import *
 
 from OnixWeb.addons.models import PessoaJuridica, logData, ThreadingCounter, PessoaFisica, AgendamentosRPA, Empresas
 from OnixWeb.addons.util import log_message, verify_downloaded, limpar_pasta
+from OnixWeb import db
+# Configuração para uso da GPU
+import torch
+import os
+
+# Forçar o uso da GPU
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use a primeira GPU disponível
+
+# Verificar se CUDA está disponível e configurar
+if torch.cuda.is_available():
+    print(f"GPU detectada: {torch.cuda.get_device_name(0)}")
+    print(f"Número de GPUs disponíveis: {torch.cuda.device_count()}")
+    # Definir dispositivo padrão para CUDA
+    device = torch.device('cuda')
+    torch.backends.cudnn.benchmark = True
+else:
+    print("AVISO: GPU não detectada. Usando CPU.")
+    device = torch.device('cpu')
+
+# Configurar EasyOCR para usar GPU se disponível
+import easyocr
+
+reader = easyocr.Reader(['pt', 'en'], gpu=torch.cuda.is_available())
 
 root_path = os.path.abspath('')
 
@@ -72,89 +99,173 @@ def checkParamPadrao(TipoPessoa, idPessoa):
         'nfe_provided': bool(Pessoa.pref_nfe_prestado),
     }
 
+def dadosLoginSefaz(EmpresaExec):
+    with app.app_context():
+        Empresa = Empresas.query.filter_by(id=2).first()
+        if Empresa is None:
+            raise ValueError(f"Empresa com ID {EmpresaExec} não encontrada no banco de dados")
+
+        if not Empresa.login_prefeitura or not Empresa.senha_prefeitura:
+            raise ValueError(f"Empresa {Empresa.name} não possui dados de login da prefeitura configurados")
+
+    return {'login': Empresa.login_prefeitura, 'senha': Empresa.senha_prefeitura}
+
 
 def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec, Ano, Mes):
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
     dados = dadosPessoasPJ(listaPessoas, EmpresaExec)
+    dadosLogin = dadosLoginSefaz(EmpresaExec)
     listaLen = len(listaPessoas)
     percentilProcesso = 80
     percentilPorPessoa = int(percentilProcesso / listaLen)
     percentilInicial = 5
     setPercentilProcesso(nome_thread, percentilInicial)
 
-    for pessoa in dados:
-        includeLogData(nome_thread,
-                       f'PROCESSOS - {pessoa["name"]}',
-                       'Iniciando processos para a empresa...',
-                       'BOT',
-                       'BOT',
-                       'primary-gradient',
-                       'SUCESSO',
-                       'success-gradient')
+    '########## INICIA O DRIVER E CONFIGURA PARA EXECUÇÃO UNICA ##########'
+    driver = IniciarDriver()
+    '########## REALIZA O LOGIN UNICO SEFAZ ###########'
+    logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
-        name_company = pessoa['name']
-        id_company = pessoa['id']
-        username = pessoa['username']
-        password = pessoa['password']
+    if logado:
+        counter = 0
+        print(f'Total empresas: {len(dados)} - Thread: {nome_thread}')  # ✅ REMOVIDO dadosAgendamento.id
 
-        '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
-        anoExec = f'{Ano}'
-        if len(str(Mes)) == 1:
-            mesExec = f'0{Mes}'
-        else:
-            mesExec = f'{Mes}'
+        for pessoa in dados:
+            includeLogData(nome_thread,
+                           f'PROCESSOS - {pessoa["name"]}',
+                           'Iniciando processos para a empresa...',
+                           'BOT',
+                           'BOT',
+                           'primary-gradient',
+                           'SUCESSO',
+                           'success-gradient')
 
-        '########## VERIFICA PASTA TEMPORARIA ##########'
-        nome_empresa = f"{name_company} - {username}"
-        pastaArquivos = os.path.join(caminho_pasta, nome_empresa, anoExec, mesExec)
-        if not os.path.exists(pastaArquivos):
-            os.makedirs(pastaArquivos)
+            name_company = pessoa['name']
+            id_company = pessoa['id']
+            username = pessoa['username']
+            ie = pessoa['ie']
 
-        '########## INICIA O DRIVER E CONFIGURA PARA CADA EXECUÇÃO ##########'
-        driver = IniciarDriver()
-        driver.execute_cdp_cmd('Page.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+            '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+            anoExec = f'{Ano}'
+            if len(str(Mes)) == 1:
+                mesExec = f'0{Mes}'
+            else:
+                mesExec = f'{Mes}'
 
-        '########## REALIZA O LOGIN ###########'
-        logado = exec_LOGIN(driver, nome_thread, name_company, username, username, password, pastaArquivos)
-        if logado:
+            '########## VERIFICA PASTA TEMPORARIA ##########'
+            nome_empresa = f"{name_company}"
+            pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "FISCAL PJ", anoExec, mesExec,
+                                         "Relatórios")
+            if not os.path.exists(pastaArquivos):
+                os.makedirs(pastaArquivos)
+
+            driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
             if listaParametros['enc_taken']:
-                exec_ENC_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec)
+                exec_ENC_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
             if listaParametros['enc_provided']:
-                exec_ENC_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec)
+                exec_ENC_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+            if listaParametros['taken']:
+                exec_PDF_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
+
+            if listaParametros['provided']:
+                exec_PDF_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
 
             if listaParametros['issqn']:
-                exec_GUIAISSQN(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-
-            if listaParametros['taken']:
-                exec_PDF_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-            if listaParametros['provided']:
-                exec_PDF_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-
+                exec_GUIAISSQN(driver=driver,
+                               nome_thread=nome_thread,
+                               name_company=name_company,
+                               cnpj_cpf=username,
+                               idDoc=username,
+                               execMes=mesExec,
+                               execAno=anoExec,
+                               pastaArquivos=pastaArquivos)
             if listaParametros['nfe_taken']:
-                exec_NFSE_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_NFSE_TOMADOS(driver=driver,
+                                  nome_thread=nome_thread,
+                                  name_company=name_company,
+                                  cnpj_cpf=username,
+                                  idDoc=username,
+                                  execMes=mesExec,
+                                  execAno=anoExec,
+                                  pastaArquivos=pastaArquivos)
+                '''exec_XML_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)'''
             if listaParametros['nfe_provided']:
-                exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_NFSE_PRESTADOS(driver=driver,
+                                    nome_thread=nome_thread,
+                                    name_company=name_company,
+                                    cnpj_cpf=username,
+                                    idDoc=username,
+                                    execMes=mesExec,
+                                    execAno=anoExec,
+                                    pastaArquivos=pastaArquivos)
+                '''exec_XML_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)'''
 
-            sleep(1)
+            sleep(20)
             limpar_pasta(pastaArquivos)
 
-        '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
+            # ✅ MOVER TUDO PARA DENTRO DO LOOP
+            counter += 1
+            print(f'Finalizado: {counter}/{len(dados)} - Thread: {nome_thread} - Pessoa: ({id_company}) {name_company}')
 
-        includeLogData(nome_thread,
-                       f'PROCESSOS - {pessoa["name"]}',
-                       'Processos finalizados para a empresa...',
-                       'BOT',
-                       'BOT',
-                       'primary-gradient',
-                       'SUCESSO',
-                       'success-gradient')
-        setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
-        percentilInicial = percentilInicial + percentilPorPessoa
+            includeLogData(nome_thread,
+                           f'PROCESSOS - {pessoa["name"]}',
+                           'Processos finalizados para a empresa...',
+                           'BOT',
+                           'BOT',
+                           'primary-gradient',
+                           'SUCESSO',
+                           'success-gradient')
+            setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
+            percentilInicial = percentilInicial + percentilPorPessoa
+
+        '########## FINALIZA O DRIVER ##########'
         driver.close()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
@@ -182,68 +293,148 @@ def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec
                        'danger-gradient')
 
 
-def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
+def MainExecution_Juridica_Padrao(listaPessoas, listaParametros, EmpresaExec, Ano, Mes):
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
     dados = dadosPessoasPJ(listaPessoas, EmpresaExec)
+    dadosLogin = dadosLoginSefaz(EmpresaExec)
     listaLen = len(listaPessoas)
     percentilProcesso = 80
     percentilPorPessoa = int(percentilProcesso / listaLen)
     percentilInicial = 5
     setPercentilProcesso(nome_thread, percentilInicial)
 
-    for pessoa in dados:
-        includeLogData(nome_thread,
-                       f'PROCESSOS - {pessoa["name"]}',
-                       'Iniciando processos para a empresa...',
-                       'BOT',
-                       'BOT',
-                       'primary-gradient',
-                       'SUCESSO',
-                       'success-gradient')
+    '########## INICIA O DRIVER E CONFIGURA PARA EXECUÇÃO UNICA ##########'
+    driver = IniciarDriver()
+    '########## REALIZA O LOGIN UNICO PREFEITURA ###########'
+    logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
-        name_company = pessoa['name']
-        id_company = pessoa['id']
-        username = pessoa['username']
-        password = pessoa['password']
-        listaParametros = checkParamPadrao('PJ', id_company)
+    if logado:
 
-        '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
-        anoExec = f'{Ano}'
-        if len(str(Mes)) == 1:
-            mesExec = f'0{Mes}'
-        else:
-            mesExec = f'{Mes}'
+        for pessoa in dados:
+            counter += 1
+            includeLogData(nome_thread,
+                           f'PROCESSOS - {pessoa["name"]}',
+                           'Iniciando processos para a empresa...',
+                           'BOT',
+                           'BOT',
+                           'primary-gradient',
+                           'SUCESSO',
+                           'success-gradient')
 
-        '########## VERIFICA PASTA TEMPORARIA ##########'
-        nome_empresa = f"{name_company} - {username}"
-        pastaArquivos = os.path.join(caminho_pasta, nome_empresa, anoExec, mesExec)
-        if not os.path.exists(pastaArquivos):
-            os.makedirs(pastaArquivos)
+            name_company = pessoa['name']
+            id_company = pessoa['id']
+            username = pessoa['username']
+            ie = pessoa['ie']
 
-        '########## INICIA O DRIVER E CONFIGURA PARA CADA EXECUÇÃO ##########'
-        driver = IniciarDriver()
-        driver.execute_cdp_cmd('Page.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+            '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+            anoExec = f'{Ano}'
+            if len(str(Mes)) == 1:
+                mesExec = f'0{Mes}'
+            else:
+                mesExec = f'{Mes}'
 
-        '########## REALIZA O LOGIN ###########'
-        logado = exec_LOGIN(driver, nome_thread, name_company, username, username, password, pastaArquivos)
-        if logado:
+            '########## VERIFICA PASTA TEMPORARIA ##########'
+            nome_empresa = f"{name_company}"
+            pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "FISCAL PJ", anoExec, mesExec, "Relatórios")
+            if not os.path.exists(pastaArquivos):
+                os.makedirs(pastaArquivos)
+
+            driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-            if listaParametros['taken']:
-                exec_PDF_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-            if listaParametros['provided']:
-                exec_PDF_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
 
-            if listaParametros['nfe_taken']:
-                exec_NFSE_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-            if listaParametros['nfe_provided']:
-                exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+            '######### EXECUTA ESCOLHAS APOS LOGADO ########'
+            if listaParametros['enc_taken']:
+                exec_ENC_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
+            elif listaParametros['enc_provided']:
+                exec_ENC_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+            elif listaParametros['taken']:
+                exec_PDF_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
 
-            sleep(1)
+            elif listaParametros['provided']:
+                exec_PDF_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+
+            elif listaParametros['issqn']:
+                exec_GUIAISSQN(driver=driver,
+                               nome_thread=nome_thread,
+                               name_company=name_company,
+                               cnpj_cpf=username,
+                               idDoc=username,
+                               execMes=mesExec,
+                               execAno=anoExec,
+                               pastaArquivos=pastaArquivos)
+            elif listaParametros['nfe_taken']:
+                exec_NFSE_TOMADOS(driver=driver,
+                                  nome_thread=nome_thread,
+                                  name_company=name_company,
+                                  cnpj_cpf=username,
+                                  idDoc=username,
+                                  execMes=mesExec,
+                                  execAno=anoExec,
+                                  pastaArquivos=pastaArquivos)
+                exec_XML_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
+            elif listaParametros['nfe_provided']:
+                exec_NFSE_PRESTADOS(driver=driver,
+                                    nome_thread=nome_thread,
+                                    name_company=name_company,
+                                    cnpj_cpf=username,
+                                    idDoc=username,
+                                    execMes=mesExec,
+                                    execAno=anoExec,
+                                    pastaArquivos=pastaArquivos)
+                exec_XML_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+
+            sleep(10)
             limpar_pasta(pastaArquivos)
+            counter += 1  # ✅ ADICIONAR NO FINAL DO LOOP
+            print(
+                f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')  # ✅ ADICIONAR
+
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
         includeLogData(nome_thread,
@@ -256,6 +447,7 @@ def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                        'success-gradient')
         setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
         percentilInicial = percentilInicial + percentilPorPessoa
+
         driver.close()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
@@ -287,78 +479,142 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
-    dados = dadosPessoasPF(listaPessoas, EmpresaExec)
+    dados = dadosPessoasPJ(listaPessoas, EmpresaExec)
+    dadosLogin = dadosLoginSefaz(EmpresaExec)
     listaLen = len(listaPessoas)
     percentilProcesso = 80
     percentilPorPessoa = int(percentilProcesso / listaLen)
     percentilInicial = 5
     setPercentilProcesso(nome_thread, percentilInicial)
 
-    for pessoa in dados:
-        includeLogData(nome_thread,
-                       f'PROCESSOS - {pessoa["name"]}',
-                       'Iniciando processos para a pessoa física...',
-                       'BOT',
-                       'BOT',
-                       'primary-gradient',
-                       'SUCESSO',
-                       'success-gradient')
+    '########## INICIA O DRIVER E CONFIGURA PARA EXECUÇÃO UNICA ##########'
+    driver = IniciarDriver()
+    '########## REALIZA O LOGIN UNICO PREFEITURA DE PVA ###########'
+    logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
-        name_company = pessoa['name']
-        id_company = pessoa['id']
-        username = pessoa['username']
-        password = pessoa['password']
-        ie = pessoa['ie']
+    if logado:
 
-        '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
-        anoExec = f'{Ano}'
-        if len(str(Mes)) == 1:
-            mesExec = f'0{Mes}'
-        else:
-            mesExec = f'{Mes}'
+        for pessoa in dados:
+            includeLogData(nome_thread,
+                           f'PROCESSOS - {pessoa["name"]}',
+                           'Iniciando processos para a Pessoa Física...',
+                           'BOT',
+                           'BOT',
+                           'primary-gradient',
+                           'SUCESSO',
+                           'success-gradient')
 
-        '########## VERIFICA PASTA TEMPORARIA ##########'
-        nome_empresa = f"{name_company} - {ie}"
-        pastaArquivos = os.path.join(caminho_pasta, nome_empresa, anoExec, mesExec)
-        if not os.path.exists(pastaArquivos):
-            os.makedirs(pastaArquivos)
+            name_company = pessoa['name']
+            id_company = pessoa['id']
+            username = pessoa['username']
+            ie = pessoa['ie']
 
-        '########## INICIA O DRIVER E CONFIGURA PARA CADA EXECUÇÃO ##########'
-        driver = IniciarDriver()
-        driver.execute_cdp_cmd('Page.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+            '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+            anoExec = f'{Ano}'
+            if len(str(Mes)) == 1:
+                mesExec = f'0{Mes}'
+            else:
+                mesExec = f'{Mes}'
 
-        '########## REALIZA O LOGIN ###########'
-        logado = exec_LOGIN(driver, nome_thread, name_company, username, username, password, pastaArquivos)
-        if logado:
+            '########## VERIFICA PASTA TEMPORARIA ##########'
+            nome_empresa = f"{name_company}"
+            pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "RURAL", anoExec, mesExec,
+                                         "Relatórios")
+            if not os.path.exists(pastaArquivos):
+                os.makedirs(pastaArquivos)
+
+            driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
             if listaParametros['enc_taken']:
-                exec_ENC_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec)
+                exec_ENC_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
             if listaParametros['enc_provided']:
-                exec_ENC_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec)
-
-            if listaParametros['issqn']:
-                exec_GUIAISSQN(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-
+                exec_ENC_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
             if listaParametros['taken']:
-                exec_PDF_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_PDF_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
+                exec_XML_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
             if listaParametros['provided']:
-                exec_PDF_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-
+                exec_PDF_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                exec_XML_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+            if listaParametros['issqn']:
+                exec_GUIAISSQN(driver=driver,
+                               nome_thread=nome_thread,
+                               name_company=name_company,
+                               cnpj_cpf=username,
+                               idDoc=username,
+                               execMes=mesExec,
+                               execAno=anoExec,
+                               pastaArquivos=pastaArquivos)
             if listaParametros['nfe_taken']:
-                exec_NFSE_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_NFSE_TOMADOS(driver=driver,
+                                  nome_thread=nome_thread,
+                                  name_company=name_company,
+                                  cnpj_cpf=username,
+                                  idDoc=username,
+                                  execMes=mesExec,
+                                  execAno=anoExec,
+                                  pastaArquivos=pastaArquivos)
             if listaParametros['nfe_provided']:
-                exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_NFSE_PRESTADOS(driver=driver,
+                                    nome_thread=nome_thread,
+                                    name_company=name_company,
+                                    cnpj_cpf=username,
+                                    idDoc=username,
+                                    execMes=mesExec,
+                                    execAno=anoExec,
+                                    pastaArquivos=pastaArquivos)
 
-            sleep(1)
+            sleep(20)
             limpar_pasta(pastaArquivos)
 
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
         includeLogData(nome_thread,
                        f'PROCESSOS - {pessoa["name"]}',
-                       'Processos finalizados para a pessoa física...',
+                       'Processos finalizados para a empresa...',
                        'BOT',
                        'BOT',
                        'primary-gradient',
@@ -366,6 +622,7 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
                        'success-gradient')
         setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
         percentilInicial = percentilInicial + percentilPorPessoa
+
         driver.close()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
@@ -393,75 +650,120 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
                        'danger-gradient')
 
 
-def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
+def MainExecution_Fisica_Padrao(listaPessoas, listaParametros, EmpresaExec, Ano, Mes):
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
-    dados = dadosPessoasPF(listaPessoas, EmpresaExec)
+    dados = dadosPessoasPJ(listaPessoas, EmpresaExec)
+    dadosLogin = dadosLoginSefaz(EmpresaExec)
     listaLen = len(listaPessoas)
     percentilProcesso = 80
     percentilPorPessoa = int(percentilProcesso / listaLen)
     percentilInicial = 5
     setPercentilProcesso(nome_thread, percentilInicial)
 
-    for pessoa in dados:
-        includeLogData(nome_thread,
-                       f'PROCESSOS - {pessoa["name"]}',
-                       'Iniciando processos para a pessoa física...',
-                       'BOT',
-                       'BOT',
-                       'primary-gradient',
-                       'SUCESSO',
-                       'success-gradient')
+    '########## INICIA O DRIVER E CONFIGURA PARA EXECUÇÃO UNICA ##########'
+    driver = IniciarDriver()
+    '########## REALIZA O LOGIN UNICO SEFAZ ###########'
+    logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
-        name_company = pessoa['name']
-        id_company = pessoa['id']
-        username = pessoa['username']
-        password = pessoa['password']
-        ie = pessoa['ie']
-        listaParametros = checkParamPadrao('PF', id_company)
+    if logado:
 
-        '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
-        anoExec = f'{Ano}'
-        if len(str(Mes)) == 1:
-            mesExec = f'0{Mes}'
-        else:
-            mesExec = f'{Mes}'
+        for pessoa in dados:
+            includeLogData(nome_thread,
+                           f'PROCESSOS - {pessoa["name"]}',
+                           'Iniciando processos para a Pessoa Física...',
+                           'BOT',
+                           'BOT',
+                           'primary-gradient',
+                           'SUCESSO',
+                           'success-gradient')
 
-        '########## VERIFICA PASTA TEMPORARIA ##########'
-        nome_empresa = f"{name_company} - {ie}"
-        pastaArquivos = os.path.join(caminho_pasta, nome_empresa, anoExec, mesExec)
-        if not os.path.exists(pastaArquivos):
-            os.makedirs(pastaArquivos)
+            name_company = pessoa['name']
+            id_company = pessoa['id']
+            username = pessoa['username']
+            ie = pessoa['ie']
 
-        '########## INICIA O DRIVER E CONFIGURA PARA CADA EXECUÇÃO ##########'
-        driver = IniciarDriver()
-        driver.execute_cdp_cmd('Page.setDownloadBehavior', {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+            '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+            anoExec = f'{Ano}'
+            if len(str(Mes)) == 1:
+                mesExec = f'0{Mes}'
+            else:
+                mesExec = f'{Mes}'
 
-        '########## REALIZA O LOGIN ###########'
-        logado = exec_LOGIN(driver, nome_thread, name_company, username, username, password, pastaArquivos)
-        if logado:
+            '########## VERIFICA PASTA TEMPORARIA ##########'
+            nome_empresa = f"{name_company} - {username}"
+            pastaArquivos = os.path.join(caminho_pasta, nome_empresa, anoExec, mesExec)
+            if not os.path.exists(pastaArquivos):
+                os.makedirs(pastaArquivos)
+
+            driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
             '######### EXECUTA ESCOLHAS APOS LOGADO ########'
+
             if listaParametros['taken']:
-                exec_PDF_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_PDF_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
+                exec_XML_TOMADOS(driver=driver,
+                                 nome_thread=nome_thread,
+                                 name_company=name_company,
+                                 cnpj_cpf=username,
+                                 idDoc=username,
+                                 execMes=mesExec,
+                                 execAno=anoExec,
+                                 pastaArquivos=pastaArquivos)
             if listaParametros['provided']:
-                exec_PDF_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                exec_XML_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_PDF_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                exec_XML_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
 
             if listaParametros['nfe_taken']:
-                exec_NFSE_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_NFSE_TOMADOS(driver=driver,
+                                  nome_thread=nome_thread,
+                                  name_company=name_company,
+                                  cnpj_cpf=username,
+                                  idDoc=username,
+                                  execMes=mesExec,
+                                  execAno=anoExec,
+                                  pastaArquivos=pastaArquivos)
             if listaParametros['nfe_provided']:
-                exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                exec_NFSE_PRESTADOS(driver=driver,
+                                    nome_thread=nome_thread,
+                                    name_company=name_company,
+                                    cnpj_cpf=username,
+                                    idDoc=username,
+                                    execMes=mesExec,
+                                    execAno=anoExec,
+                                    pastaArquivos=pastaArquivos)
 
-            sleep(1)
+            sleep(20)
             limpar_pasta(pastaArquivos)
 
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
         includeLogData(nome_thread,
                        f'PROCESSOS - {pessoa["name"]}',
-                       'Processos finalizados para a pessoa física...',
+                       'Processos finalizados para a empresa...',
                        'BOT',
                        'BOT',
                        'primary-gradient',
@@ -469,6 +771,7 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                        'success-gradient')
         setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
         percentilInicial = percentilInicial + percentilPorPessoa
+
         driver.close()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
@@ -496,10 +799,11 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                        'danger-gradient')
 
 
-def MainExecution_Agendamentos(idAgendamento, idCidade):
+def MainExecution_Agendamentos(idAgendamento, listaParametros, EmpresaExec, idCidade=1):
     with app.app_context():
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
         dadosAgendamento.status = 'Em Execução'
+        dadosLogin = dadosLoginSefaz(EmpresaExec)
         db.session.commit()
 
         if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
@@ -550,83 +854,162 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
         percentilInicial = 5
         setPercentilProcesso(nome_thread, percentilInicial)
 
-        for pessoa in dados:
-            includeLogData(nome_thread,
-                           f'PROCESSOS - {pessoa["name"]}',
-                           f'Iniciando processos para a {desc}...',
-                           'BOT',
-                           'BOT',
-                           'primary-gradient',
-                           'SUCESSO',
-                           'success-gradient')
+        '########## INICIA O DRIVER E CONFIGURA PARA EXECUÇÃO UNICA ##########'
+        driver = IniciarDriver()
+        '########## REALIZA O LOGIN UNICO SEFAZ ###########'
+        dadosLogin = dadosLoginSefaz(EmpresaExec)
+        logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
-            name_company = pessoa['name']
-            id_company = pessoa['id']
-            username = pessoa['username']
-            password = pessoa['password']
-            ie = pessoa['ie']
+        if logado:
+            counter = 0
+            print(f'Total empresas: {len(dados)} - Agendamento {dadosAgendamento.id} - Thread: {nome_thread}')
+            for pessoa in dados:
+                includeLogData(nome_thread,
+                               f'PROCESSOS - {pessoa["name"]}',
+                               f'Iniciando processos para a {desc}...',
+                               'BOT',
+                               'BOT',
+                               'primary-gradient',
+                               'SUCESSO',
+                               'success-gradient')
 
-            listaParametros = []
-            if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
-                listaParametros = checkParamPadrao('PJ', id_company)
-            elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
-                listaParametros = checkParamPadrao('PF', id_company)
+                name_company = pessoa['name']
+                id_company = pessoa['id']
+                username = pessoa['username']
+                ie = pessoa['ie']
 
-            '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
-            anoExec = f'{AnoExecucao}'
-            if len(str(MesExecucao)) == 1:
-                mesExec = f'0{MesExecucao}'
-            else:
-                mesExec = f'{MesExecucao}'
+                listaParametros = []
+                if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
+                    listaParametros = checkParamPadrao('PJ', id_company)
+                elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
+                    listaParametros = checkParamPadrao('PF', id_company)
 
-            nome_empresa = ''
-            '########## VERIFICA PASTA TEMPORARIA ##########'
-            if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
-                nome_empresa = f"{name_company} - {username}"
-            elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
-                nome_empresa = f"{name_company} - {ie}"
+                '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+                anoExec = f'{AnoExecucao}'
+                if len(str(MesExecucao)) == 1:
+                    mesExec = f'0{MesExecucao}'
+                else:
+                    mesExec = f'{MesExecucao}'
 
-            pastaArquivos = os.path.join(caminho_pasta, nome_empresa, anoExec, mesExec)
-            if not os.path.exists(pastaArquivos):
-                os.makedirs(pastaArquivos)
+                #nome_empresa = ''
+                '########## VERIFICA PASTA TEMPORARIA ##########'
+                if dadosAgendamento.tipo_pessoa_agendamento == 'PJ':
+                    nome_empresa = f"{name_company}"
+                elif dadosAgendamento.tipo_pessoa_agendamento == 'PF':
+                    nome_empresa = f"{name_company}"
 
-            '########## INICIA O DRIVER E CONFIGURA PARA CADA EXECUÇÃO ##########'
-            driver = IniciarDriver()
-            driver.execute_cdp_cmd('Page.setDownloadBehavior',
-                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+                # Define o caminho base com ou sem pasta "rural" dependendo do tipo de pessoa
+                if dadosAgendamento.tipo_pessoa_agendamento == 'PF':
+                    pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "Rural", anoExec, mesExec,
+                                                 "Relatórios")
+                else:
+                    pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "FISCAL PJ", anoExec, mesExec, "Relatórios")
 
-            '########## REALIZA O LOGIN ###########'
-            logado = exec_LOGIN(driver, nome_thread, name_company, username, username, password, pastaArquivos)
-            if logado:
+                # Cria todas as pastas necessárias
+                try:
+                    os.makedirs(pastaArquivos, exist_ok=True)
+                    print(f"✅ Estrutura de pastas criada: {pastaArquivos}")
+                except Exception as e:
+                    print(f"❌ Erro ao criar estrutura de pastas: {str(e)}")
+                    raise
+
+                driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                       {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
+
+
                 '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-                if listaParametros['enc_taken'] and 'pref_enc_tomado' in ParametrosAgendamento:
-                    exec_ENC_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec)
-                if listaParametros['enc_provided'] and 'pref_enc_prestado' in ParametrosAgendamento:
-                    exec_ENC_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec)
+                if listaParametros['enc_taken']:
+                    exec_ENC_TOMADOS( driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                if listaParametros['enc_provided']:
+                    exec_ENC_PRESTADOS( driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                if listaParametros['taken']:
+                    exec_PDF_TOMADOS( driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
 
-                if listaParametros['issqn'] and 'pref_guia_issqn' in ParametrosAgendamento:
-                    exec_GUIAISSQN(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                if listaParametros['provided']:
+                    exec_PDF_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
 
-                if listaParametros['taken'] and 'pref_rel_tomado' in ParametrosAgendamento:
-                    exec_PDF_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                    exec_XML_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                if listaParametros['provided'] and 'pref_rel_prestado' in ParametrosAgendamento:
-                    exec_PDF_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                    exec_XML_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
+                if listaParametros['issqn']:
+                    exec_GUIAISSQN(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                if listaParametros['nfe_taken']:
+                    exec_NFSE_TOMADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                    exec_XML_TOMADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                if listaParametros['nfe_provided']:
+                    exec_NFSE_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
+                    exec_XML_PRESTADOS(driver=driver,
+                                   nome_thread=nome_thread,
+                                   name_company=name_company,
+                                   cnpj_cpf=username,
+                                   idDoc=username,
+                                   execMes=mesExec,
+                                   execAno=anoExec,
+                                   pastaArquivos=pastaArquivos)
 
-                if listaParametros['nfe_taken'] and 'pref_nfe_tomado' in ParametrosAgendamento:
-                    exec_NFSE_TOMADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
-                if listaParametros['nfe_provided'] and 'pref_nfe_prestado' in ParametrosAgendamento:
-                    exec_NFSE_PRESTADOS(driver, nome_thread, name_company, username, mesExec, anoExec, pastaArquivos)
 
-                sleep(1)
+                sleep(10)
                 limpar_pasta(pastaArquivos)
 
-            '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
+                '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
             includeLogData(nome_thread,
                            f'PROCESSOS - {pessoa["name"]}',
-                           f'Processos finalizados para a {desc}...',
+                           'Processos finalizados para a empresa...',
                            'BOT',
                            'BOT',
                            'primary-gradient',
@@ -634,30 +1017,66 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
                            'success-gradient')
             setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
             percentilInicial = percentilInicial + percentilPorPessoa
-            driver.close()
 
-        '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
-        try:
-            shutil.make_archive(caminho_pasta, 'zip', caminho_pasta)
-            includeLogData(nome_thread,
-                           f'ARQUIVO FINAL',
-                           'Arquivo gerado e disponível!',
-                           'BOT',
-                           'BOT',
-                           'primary-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-            setPercentilProcesso(nome_thread, 100)
-        except Exception as e:
-            print(f"Ocorreu um erro ao zipar a pasta: {e}")
-            includeLogData(nome_thread,
-                           f'ARQUIVO FINAL',
-                           'Erro ao gerar arquivo!',
-                           'BOT',
-                           'RPA',
-                           'primary-gradient',
-                           'ERRO',
-                           'danger-gradient')
+            counter += 1
+            print(
+                f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
+
+            '######### ZIPA PASTA ESPECIFICA E ENVIA #############'
+
+            caminhoZip = os.path.join(caminho_pasta, nome_empresa)
+
+            try:
+                shutil.make_archive(caminhoZip, 'zip', caminhoZip)
+                includeLogData(nome_thread,
+                               f'ARQUIVO ZIP EMPRESA',
+                               'Arquivo gerado e disponível!',
+                               'BOT',
+                               'BOT',
+                               'primary-gradient',
+                               'SUCESSO',
+                               'success-gradient')
+                setPercentilProcesso(nome_thread, 100)
+            except Exception as e:
+                print(f"Ocorreu um erro ao zipar a pasta: {e}")
+                includeLogData(nome_thread,
+                               f'ARQUIVO ZIP EMPRESA',
+                               'Erro ao gerar arquivo!',
+                               'BOT',
+                               'RPA',
+                               'primary-gradient',
+                               'ERRO',
+                               'danger-gradient')
+
+            tipo_envio = 'zip'
+
+            if tipo_envio == 'receiver':
+                '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
+                DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
+                if DadosEmpresaEnvio.autorizado_schedule:
+                    pathEnvio = fr"{dadosAgendamento.path_receiver}\{nome_empresa}"
+                    receiver_ip = DadosEmpresaEnvio.receiver_ip
+                    receiver_ip_secondary = DadosEmpresaEnvio.receiver_ip_secondary
+                    receiver_port = DadosEmpresaEnvio.receiver_port
+                    zipData = os.path.join(fr"{caminhoZip}.zip")
+
+                    print('Iniciando envio para:')
+                    print(f'IP Primario: {receiver_ip}')
+                    print(f'IP Secundario: {receiver_ip_secondary}')
+                    print(f'Porta: {receiver_port}')
+                    print(f'zipDataPath: {zipData}')
+                    print(f'ReceiverPath: {pathEnvio}')
+                    SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_ip_secondary, receiver_port,
+                                pathEnvio)
+
+                    print('Envio Finalizado!')
+
+            elif tipo_envio == 'zip':
+                '### EXTRAI ARQUIVOS NO SERVIDOR BASE TIPO PESSOA'
+                pathEnvio = os.path.join(dadosAgendamento.path_receiver, nome_empresa)
+                zipData = os.path.join(fr"{caminhoZip}.zip")
+                with zipfile.ZipFile(zipData, 'r') as zip_ref:
+                    zip_ref.extractall(pathEnvio)
 
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
         if dadosAgendamento.in_repeat:
@@ -670,24 +1089,6 @@ def MainExecution_Agendamentos(idAgendamento, idCidade):
         sleep(5)
         print('Iniciando envio dos arquivos do agendamento.')
         sleep(5)
-
-        '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
-        DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
-        if DadosEmpresaEnvio.autorizado_schedule:
-            pathEnvio = dadosAgendamento.path_receiver
-            receiver_ip = DadosEmpresaEnvio.receiver_ip
-            receiver_ip_secondary = DadosEmpresaEnvio.receiver_ip_secondary
-            receiver_port = DadosEmpresaEnvio.receiver_port
-            zipData = os.path.join(root_path, fr"OnixWeb\rpautomation\transactionFiles\{nome_thread}.zip")
-
-            print('Iniciando envio para:')
-            print(f'IP: {receiver_ip}')
-            print(f'Porta: {receiver_port}')
-            print(f'zipDataPath: {zipData}')
-            print(f'ReceiverPath: {pathEnvio}')
-            SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_ip_secondary, receiver_port, pathEnvio)
-
-            print('Envio Finalizado!')
 
 
 def dadosPessoasPF(listaPessoas, EmpresaExec):
@@ -733,1198 +1134,273 @@ def dadosPessoasPJ(listaPessoas, EmpresaExec):
 
 
 def IniciarDriver():
-    service = Service(os.path.join(root_path, fr"OnixWeb\rpautomation\dependencias\chromedriver\chromedriver.exe"))
-    chrome_options = Options()
-    # chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--window-size=1080,900')
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    prefs = {"plugins.plugins_list": [{"enabled": False,
-                                       "name": "Chrome PDF Viewer"}],
-             "download.extensions_to_open": "",
-             "plugins.always_open_pdf_externally": True,
-             "credentials_enable_service": False,
-             "profile.password_manager_enabled": False
-             }
-    chrome_options.add_experimental_option('prefs', prefs)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    # driver.set_page_load_timeout(10)
-    return driver
+ import os
+ import tempfile
+ import uuid
+ import threading
+
+ caminho_driver = os.path.join(
+  root_path,
+  r"OnixWeb\rpautomation\dependencias\chromedriver\chromedriver.exe"
+ )
+
+ print(f"🔧 ChromeDriver usado: {caminho_driver}")
+ print(f"🔧 ChromeDriver existe? {os.path.exists(caminho_driver)}")
+
+ chrome_options = Options()
+
+ # Perfil exclusivo por execução para evitar travamento em data:,
+ nome_thread = threading.current_thread().name
+ perfil_chrome = os.path.join(
+  tempfile.gettempdir(),
+  f"onix_chrome_profile_{nome_thread}_{uuid.uuid4().hex}"
+ )
+
+ chrome_options.add_argument(f"--user-data-dir={perfil_chrome}")
+ chrome_options.add_argument("--window-size=1080,900")
+ chrome_options.add_argument("--start-maximized")
+ chrome_options.add_argument("--disable-notifications")
+ chrome_options.add_argument("--disable-popup-blocking")
+ chrome_options.add_argument("--remote-debugging-port=0")
+
+ # NÃO usar por enquanto:
+ # chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+ # chrome_options.add_experimental_option("useAutomationExtension", False)
+
+ prefs = {
+  "download.extensions_to_open": "",
+  "plugins.always_open_pdf_externally": True,
+  "credentials_enable_service": False,
+  "download.prompt_for_download": False,
+  "download.directory_upgrade": True,
+  "profile.password_manager_enabled": False,
+  "profile.default_content_setting_values.notifications": 2
+ }
+
+ chrome_options.add_experimental_option("prefs", prefs)
+
+ service = Service(
+  caminho_driver,
+  log_output=os.path.join(root_path, "chromedriver_verbose.log")
+ )
+ service.service_args = ["--verbose"]
+
+ print("🚀 Abrindo Chrome...")
+ driver = webdriver.Chrome(service=service, options=chrome_options)
+ print("✅ Chrome abriu e sessão Selenium foi criada.")
+
+ driver.set_page_load_timeout(60)
+ driver.set_script_timeout(60)
+
+ return driver
 
 
-def exec_LOGIN(driver, nome_thread, name_company, cnpj_cpf, username, password, pastaArquivos):
+def esperar_e_renomear_arquivo(pasta, novo_nome, timeout=30, intervalo=30):
+    """
+    Espera que um arquivo PDF esteja disponível na pasta e o renomeia,
+    excluindo arquivos específicos da lista de exclusão.
+
+    :param pasta: Caminho da pasta onde o arquivo será baixado.
+    :param novo_nome: Novo nome para o arquivo baixado (incluindo extensão).
+    :param timeout: Tempo máximo (em segundos) para aguardar o download.
+    :param intervalo: Intervalo de tempo (em segundos) entre verificações.
+    :return: Caminho completo do arquivo renomeado.
+    """
+    tempo_inicial = time.time()
+
+    # Lista de arquivos que devem ser ignorados
+    arquivos_excluidos = [
+        "NFS-e - Tomados.pdf",
+        "NOTAS - Tomados.pdf",
+        "NFS-e - Prestados.pdf",
+        "NOTAS - Prestados.pdf",
+        "DEC. SEM MOVIMENTO - PRESTADOS.pdf",
+        "DEC. SEM MOVIMENTO - TOMADOS.pdf",
+        "GUIA ISSQN.pdf",
+        "NOTAS - P. Canceladas.pdf"
+
+    ]
+
+    while True:
+        # Lista os arquivos na pasta
+        arquivos = os.listdir(pasta)
+        print(f"Arquivos encontrados: {arquivos}")
+
+        # Verifica se há algum arquivo PDF disponível (excluindo os da lista)
+        for arquivo in arquivos:
+            if arquivo.endswith(".pdf") and arquivo not in arquivos_excluidos:
+                caminho_antigo = os.path.join(pasta, arquivo)
+                caminho_novo = os.path.join(pasta, novo_nome)
+
+                # Verifica se o arquivo de destino já existe
+                if os.path.exists(caminho_novo):
+                    print(f"Arquivo de destino '{novo_nome}' já existe. Pulando renomeação.")
+                    continue
+
+                try:
+                    os.rename(caminho_antigo, caminho_novo)
+                    print(f"Arquivo renomeado de '{arquivo}' para: '{novo_nome}'")
+                    return caminho_novo
+                except OSError as e:
+                    print(f"Erro ao renomear arquivo '{arquivo}': {e}")
+                    continue
+
+        # Verifica se o tempo limite foi atingido
+        if time.time() - tempo_inicial > timeout:
+            raise Exception(
+                f"Nenhum arquivo PDF válido foi encontrado na pasta dentro do tempo limite de {timeout} segundos.")
+
+        # Aguarda o intervalo antes de verificar novamente
+        time.sleep(intervalo)
+
+def exec_LOGIN(driver, nome_thread, login_prefeitura, senha_prefeitura):
+    includeLogData(nome_thread,
+                   f'LOGIN - CONTABILISTA',
+                   f'Realizando login...',
+                   f'BOT',
+                   'PREFEITURA DE PRIMAVERA DO LESTE',
+                   'warning-gradient',
+                   'ATENÇÃO',
+                   'warning-gradient')
+    actions = ActionChains(driver)
+    prefpva = "https://cidadaoonline.primaveradoleste.mt.gov.br/app/pages/login-nfe"
+
+    logado = False
+
     try:
-        login_page = "http://s32.asp.srv.br:8080/issonline/servlet/hlogin"
-        try:
-            driver.get(login_page)
-        except TimeoutException:
-            driver.refresh()
-        campo_login = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, '//*[@id="_USUARIOLOGINLOGIN"]')))
-        campo_login.send_keys(username)
-        sleep(0.5)
-        Entrar = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, '//*[@id="TBLOGIN"]/tbody/tr[4]/td/p/a')))
-        Entrar.click()
-        # campo_login.send_keys(Keys.ENTER)
-        try:
-            campo_senha = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="_USUARIOLOGINSENHA"]')))
-            campo_senha.send_keys(password)
-            campo_senha.send_keys(Keys.ENTER)
+        driver.get(prefpva)
+
+        # Aguarda até que o formulário de login esteja presente
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//app-login/form")))
+
+        # Encontra o campo de login e insere o valor
+        login_field = WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
+            (By.XPATH, "//input[@name='username']")))  # Ajuste o nome do campo se necessário
+        login_field.send_keys(login_prefeitura)
+
+        # Encontra o campo de senha e insere o valor
+        password_field = WebDriverWait(driver, 10).until(EC.visibility_of_element_located(
+            (By.XPATH, "//input[@name='password']")))  # Ajuste o nome do campo se necessário
+        password_field.send_keys(senha_prefeitura)
+
+        # Encontra e clica no botão de login
+        submit_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button")))  # Ajuste o seletor se necessário
+        submit_button.click()
+
+        # Verifica se o login foi bem-sucedido
+        WebDriverWait(driver, 10).until(EC.url_to_be(
+            'https://cidadaoonline.primaveradoleste.mt.gov.br/app/dashboard'))  # Ajuste a URL de redirecionamento
+        logado = True
+
+    except Exception as e:
+        print(f"Erro durante o login: {e}")
+        logado = False  # Garante que logado seja False em caso de erro
+
+    includeLogData(nome_thread,
+                'LOGIN - CONTABILISTA',
+                'Acesso realizado com sucesso.',
+                'BOT',
+                'PREFEITURA DE PRIMAVERA DO LESTE',
+                'warning-gradient',
+                'SUCESSO',
+                'success-gradient')
+    print('logou PREFEITURA')
+    return logado
+
+
+def exec_PDF_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    actions = ActionChains(driver)
+    mes = int(execMes)
+    ano = int(execAno)
+
+    try:
+        # URL do relatório
+        tomados_relatorio2 = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/relatorios/notasescrituradas'
+        driver.get(tomados_relatorio2)
+
+        # Espera pelo dropdown de tipo de escrituração
+        ng_select = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//ng-select[@formcontrolname="tipo_escrituracao"]'))
+        )
+
+        if ng_select.is_enabled():
+            ng_select.click()
+            sleep(5)
+
+            # Seleciona a opção "Substitutiva (Serviço Tomado)"
+            opcao_fiscal = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH,
+                                            '//div[contains(@class, "ng-option") and contains(.//span, "Substitutiva (Serviço Tomado)")]'))
+            )
+            opcao_fiscal.click()
+
+            # Preenche os campos necessários
+            actions.send_keys(Keys.TAB).perform()
             sleep(0.5)
-        except Exception as Error:
-            try:
-                erro = driver.find_element(By.XPATH,
-                                           '//*[@id="TABLE3"]/tbody/tr[3]/td/span/menu/li').get_attribute(
-                    "textContent")
-                includeLogData(nome_thread,
-                               f'LOGIN - {name_company}',
-                               f'Erro ao logar - {erro}.',
-                               f'{cnpj_cpf}',
-                               'PREFEITURA',
-                               'info-gradient',
-                               'ATENÇÃO',
-                               'warning-gradient')
-            except Exception as e:
-                includeLogData(nome_thread,
-                               f'LOGIN - {name_company}',
-                               f'Erro ao logar - Não foi possivel identificar o erro...',
-                               f'{cnpj_cpf}',
-                               'PREFEITURA',
-                               'info-gradient',
-                               'ATENÇÃO',
-                               'warning-gradient')
+            actions.send_keys(f"{mes}/{ano}").perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.3)
+            actions.send_keys(f"{mes}/{ano}").perform()
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(f"{cnpj_cpf}").perform()
 
-            driver.execute_script("document.body.style.zoom = '75%'")
-            pasta_destino = f"{pastaArquivos}/ERRO AO LOGAR.png"
-            if os.path.exists(pasta_destino):
-                os.remove(pasta_destino)
-            driver.save_screenshot(pasta_destino)
-            driver.execute_script("document.body.style.zoom = '100%'")
+            # Espera que a lista de resultados apareça e seleciona a primeira opção
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()  # Clica na primeira opção
 
-            raise Exception(f'{erro}')
+            # Clica no botão "Imprimir"
+            imprimir_relatorio = driver.find_element(By.XPATH,
+                                                     '//button[contains(@class, "btn-success") and contains(., "Imprimir")]')
+            imprimir_relatorio.click()  # Clica no botão de imprimir
 
-        max_attempts = 2
-        attempts = 0
+            # Espera pelo download do arquivo e renomeia
+            caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "NFS-e - Tomados.pdf", intervalo=6)
 
-        while not driver.find_elements(By.XPATH, '//*[@id="W0004TXBUSUARIO"]'):
-            driver.execute_script(f"window.open('{login_page}', 'new_window')")
-            sleep(0.2)
-            driver.switch_to.window(driver.window_handles[-1])
-            sleep(0.2)
-            driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINLOGIN"]').send_keys('username')
-            driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINLOGIN"]').send_keys(Keys.ENTER)
-            sleep(1)
-            driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINSENHA"]').send_keys('password')
-            driver.find_element(By.XPATH, '//*[@id="_USUARIOLOGINSENHA"]').send_keys(Keys.ENTER)
-            attempts += 1
-            if attempts == max_attempts:
-                ## SALVA PRINT DE SENHA ERRADA/BLOQUEADO AO LOGAR
-                driver.execute_script("document.body.style.zoom = '75%'")
-                pasta_destino = f"{pastaArquivos}/SENHA INVALIDA-BLOQUEADA.png"
-                if os.path.exists(pasta_destino):
-                    os.remove(pasta_destino)
-                driver.save_screenshot(pasta_destino)
-                driver.execute_script("document.body.style.zoom = '100%'")
+            # Verifica se o arquivo foi baixado com sucesso
+            if os.path.exists(caminho_pdf):
+                print("PDF baixado e renomeado com sucesso:", caminho_pdf)
 
-                raise Exception('Não foi possível logar após 2 tentativas.')
-        else:
-            includeLogData(nome_thread,
-                           f'LOGIN - {name_company}',
-                           f'Login realizado - iniciando processo assinalados...',
-                           f'{cnpj_cpf}',
-                           'PREFEITURA',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-            return True
-    except Exception as Error:
-        includeLogData(nome_thread,
-                       f'LOGIN - {name_company}',
-                       f'Não conseguiu logar - Senha inválida/Máximo de tentativas atingido...',
-                       f'{cnpj_cpf}',
-                       'PREFEITURA',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-        return False
-
-
-def exec_PDF_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
-    try:
-        tomados_relatorio2 = 'http://s32.asp.srv.br:8080/issonline/servlet/hrelnotastomadas'
-        mes = int(execMes)
-        ano = int(execAno)
-        try:
-            driver.get(f'{tomados_relatorio2}')
-        except TimeoutException:
-            print(
-                f"Timeout ao acessar {tomados_relatorio2} a página. Tentando novamente...")
-            driver.refresh()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select'))).click()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]'))).click()
-
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
-        sleep(0.5)
-
-        campoTipo = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, f'//*[@id="TABLE1"]/tbody/tr[5]/td[2]/select')))
-
-        selectTipo = Select(campoTipo)
-        selectTipo.select_by_visible_text(f"Ambas")
-        sleep(0.5)
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, f'//*[@id="IMGIMPRIMIR"]'))).click()
-        try:
-            driver.switch_to.frame('Embpage')
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="open-button"]'))).click()
-        except Exception as e:
-            "print('Clicou para baixar Tomados relatorio 2, com except.')"
-
-        pdf = os.path.join(pastaArquivos, 'orelnotastomadas.pdf')
-        downloaded = False
-        arquivo = pdf
-        while not downloaded:
-            if verify_downloaded(arquivo) is True:
-                downloaded = True
+                # Registrar log de sucesso
+                includeLogData(
+                    nome_thread,
+                    f'NFSE - {name_company}',
+                    f'PDF de relatório de NFSE escrituradas - Tomador baixado com sucesso.',
+                    f'{cnpj_cpf}',
+                    'TOMADOS',
+                    'info-gradient',
+                    'SUCESSO',
+                    'success-gradient'
+                )
             else:
-                downloaded = False
-
-        novo_nome = f'{pastaArquivos}/NFS-e Tomado.pdf'
-        if os.path.exists(novo_nome):
-            os.remove(novo_nome)
-
-        os.rename(pdf, novo_nome)
-        sleep(0.5)
-        if os.path.exists(os.path.join(pastaArquivos, 'orelnotastomadas.pdf')):
-            os.remove(os.path.join(pastaArquivos, 'orelnotastomadas.pdf'))
-        includeLogData(nome_thread,
-                       f'PDF - {name_company}',
-                       f'PDF dos serviços Tomados baixado com sucesso.',
-                       f'{cnpj_cpf}',
-                       'TOMADOS',
-                       'info-gradient',
-                       'SUCESSO',
-                       'success-gradient')
+                print("Erro: O PDF não foi baixado.")
+                includeLogData(
+                    nome_thread,
+                    f'NFSE - {name_company}',
+                    f"Erro: O PDF não foi baixado.",
+                    f'{cnpj_cpf}',
+                    'TOMADOS',
+                    'info-gradient',
+                    'ATENÇÃO',
+                    'warning-gradient'
+                )
+        else:
+            print("Dropdown de tipo de escrituração não está habilitado.")
     except Exception as e:
-        includeLogData(nome_thread,
-                       f'PDF - {name_company}',
-                       f'Erro ao baixar PDF dos serviços Tomados...',
-                       f'{cnpj_cpf}',
-                       'TOMADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
+        print(f"Erro geral na execução do PDF: {e}")
 
 
-def exec_XML_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
-    try:
-        xml_tomadas = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwminhanotafiscaleletronica'
-        mes = int(execMes)
-        ano = int(execAno)
-        try:
-            driver.get(f'{xml_tomadas}')
-        except TimeoutException:
-            print(
-                f"Timeout ao acessar {xml_tomadas} a página. Tentando novamente...")
-            driver.refresh()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select'))).click()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]'))).click()
-
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
-        sleep(0.5)
-
-        try:
-            possuivalores = WebDriverWait(driver, 4).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="GRID1"]/tbody/tr[2]')))
-            if possuivalores:
-                exportar = WebDriverWait(driver, 4).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="BTNEXPORTAR"]')))
-                exportar.click()
-
-                downloaded = False
-                while not downloaded:
-                    arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
-                    for arquivo in arquivos_zip:
-                        if verify_downloaded(arquivo) is True:
-                            downloaded = True
-                        else:
-                            downloaded = False
-                sleep(0.5)
-                arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
-                for arquivo in arquivos_zip:
-                    zip_padrao_ori = os.path.splitext(os.path.basename(arquivo))[0]
-                    zip_padrao = (zip_padrao_ori[5:]).strip()
-                    with zipfile.ZipFile(arquivo, 'r') as nome_zip:
-                        nome_zip.extractall(path=pastaArquivos, pwd=None)
-                    nome_xml = f'NFS-e_{zip_padrao}_{mes}-{ano}'
-                    caminho_xml = os.path.join(pastaArquivos, nome_xml + '.xml')
-                    novo_nome_xml = f"{pastaArquivos}/XML - Tomado.xml"
-                    if os.path.exists(novo_nome_xml):
-                        os.remove(novo_nome_xml)
-                    os.rename(caminho_xml, novo_nome_xml)
-                    os.remove(arquivo)
-
-            includeLogData(nome_thread,
-                           f'XML - {name_company}',
-                           f'XML dos serviços Tomados baixado com sucesso.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-
-        except Exception as Error:
-            includeLogData(nome_thread,
-                           f'XML - {name_company}',
-                           f'Empresa não possui XML dos serviços Tomados.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-    except Exception as Error:
-        includeLogData(nome_thread,
-                       f'XML - {name_company}',
-                       f'Erro ao baixar XML dos serviços Tomados.',
-                       f'{cnpj_cpf}',
-                       'TOMADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-
-
-def exec_PDF_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
-    try:
-        livro_de_servicos = 'http://s32.asp.srv.br:8080/issonline/servlet/hrellivroservico'
-        mes = int(execMes)
-        ano = int(execAno)
-
-        try:
-            driver.get(f'{livro_de_servicos}')
-        except TimeoutException:
-            print(
-                f"Timeout ao acessar {livro_de_servicos} a página. Tentando novamente...")
-            driver.refresh()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select'))).click()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]'))).click()
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
-        sleep(0.5)
-
-        driver.find_element(By.XPATH, '//*[@id="TABLE1"]/tbody/tr[4]/td[2]/select').click()
-        driver.find_element(By.XPATH,
-                            f'//*[@id="TABLE1"]/tbody/tr[4]/td[2]/select/option[1]').click()
-        driver.find_element(By.XPATH,
-                            f'//*[@id="TEXTBLOCK1"]').click()
-        driver.find_element(By.XPATH, '//*[@id="IMGIMPRIMIR"]').click()
-        cnpjbaixado = False
-        try:
-            driver.find_element(By.XPATH,
-                                '//*[@id="TABELAPARAMETOS"]/tbody/tr[1]/td/span/menu/li')
-            driver.execute_script("document.body.style.zoom = '75%'")
-            pasta_destino = f"{pastaArquivos}/CNPJ BAIXADO.png"
-            if os.path.exists(pasta_destino):
-                os.remove(pasta_destino)
-            driver.save_screenshot(pasta_destino)
-            driver.execute_script("document.body.style.zoom = '100%'")
-            includeLogData(nome_thread,
-                           f'PDF - {name_company}',
-                           f'CNPJ da empresa se encontra BAIXADO.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'ATENÇÃO',
-                           'warning-gradient')
-            cnpjbaixado = True
-
-        except Exception as e:
-            cnpjbaixado = False
-        if not cnpjbaixado:
-            try:
-                driver.switch_to.frame('Embpage')
-                WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located(
-                        (By.XPATH, '//*[@id="open-button"]'))).click()
-            except Exception as e:
-                "print('Clicou para baixar Prestados, com except.')"
-
-        if not cnpjbaixado:
-            pdf = os.path.join(pastaArquivos, 'orellivroservico.pdf')
-            downloaded = False
-            arquivo = pdf
-            while not downloaded:
-                if verify_downloaded(arquivo) is True:
-                    downloaded = True
-                else:
-                    downloaded = False
-
-            novo_nome = f'{pastaArquivos}/NFS-e Prestado.pdf'
-            if os.path.exists(novo_nome):
-                os.remove(novo_nome)
-            sleep(0.5)
-            os.rename(pdf, novo_nome)
-            if os.path.exists(os.path.join(pastaArquivos, 'orellivroservico.pdf')):
-                os.remove(os.path.join(pastaArquivos, 'orellivroservico.pdf'))
-            sleep(0.5)
-            includeLogData(nome_thread,
-                           f'PDF - {name_company}',
-                           f'PDF dos serviços Prestados baixado com sucesso..',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-    except Exception as e:
-        try:
-            AcessoPagina = WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="TEXTBLOCK2"]')))
-            if 'Não Autorizado!' in AcessoPagina.get_attribute("textContent"):
-                print(f'{AcessoPagina.get_attribute("textContent")}')
-                driver.execute_script("document.body.style.zoom = '120%'")
-                pasta_destino = f"{pastaArquivos}/Sem Acesso - HrelLivroServico.png"
-                if os.path.exists(pasta_destino):
-                    os.remove(pasta_destino)
-                driver.save_screenshot(pasta_destino)
-                driver.execute_script("document.body.style.zoom = '100%'")
-                includeLogData(nome_thread,
-                               f'PDF - {name_company}',
-                               f'Empresa não possui acesso a tela "HrelLivroServico" para download do PDF de serviços prestados...',
-                               f'{cnpj_cpf}',
-                               'PRESTADOS',
-                               'info-gradient',
-                               'ERRO',
-                               'danger-gradient')
-        except Exception as e:
-            includeLogData(nome_thread,
-                           f'PDF - {name_company}',
-                           f'Erro ao baixar PDF de serviços prestados.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'ATENÇÃO',
-                           'warning-gradient')
-
-
-def exec_XML_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
-    try:
-        xml_prestadas = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwnotafiscaleletronica1'
-        mes = int(execMes)
-        ano = int(execAno)
-        try:
-            driver.get(f'{xml_prestadas}')
-        except TimeoutException:
-            print(
-                f"Timeout ao acessar {xml_prestadas} a página. Tentando novamente...")
-            driver.refresh()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select'))).click()
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]'))).click()
-
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
-        sleep(0.5)
-
-        try:
-            if driver.find_element(By.XPATH, '//*[@id="GRID1"]/tbody/tr[2]'):
-                exportar = WebDriverWait(driver, 2).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="BTNEXPORTAR"]')))
-                exportar.click()
-
-                popuplink = WebDriverWait(driver, 2).until(
-                    EC.presence_of_element_located((By.XPATH, '//*[@id="popupFrame"]')))
-                relatorio_xml = popuplink.get_attribute(
-                    "src")
-                try:
-                    driver.get(f'{relatorio_xml}')
-                except TimeoutException:
-                    driver.refresh()
-                driver.find_element(By.XPATH,
-                                    '//*[@id="TBL3"]/tbody/tr[3]/td/p/input').click()
-
-                downloaded = False
-                while not downloaded:
-                    arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
-                    for arquivo in arquivos_zip:
-                        if verify_downloaded(arquivo) is True:
-                            downloaded = True
-                        else:
-                            downloaded = False
-                sleep(0.5)
-                arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
-                for arquivo in arquivos_zip:
-                    zip_padrao_ori = os.path.splitext(os.path.basename(arquivo))[0]
-                    zip_padrao = (zip_padrao_ori[5:]).strip()
-                    with zipfile.ZipFile(arquivo, 'r') as nome_zip:
-                        nome_zip.extractall(path=pastaArquivos, pwd=None)
-                    nome_xml = f'NFS-e_{zip_padrao}_{mes}-{ano}'
-                    caminho_xml = os.path.join(pastaArquivos, nome_xml + '.xml')
-                    novo_nome_xml = f"{pastaArquivos}/XML - Prestado.xml"
-                    if os.path.exists(novo_nome_xml):
-                        os.remove(novo_nome_xml)
-                    os.rename(caminho_xml, novo_nome_xml)
-                    os.remove(arquivo)
-
-                includeLogData(nome_thread,
-                               f'XML - {name_company}',
-                               f'XML dos serviços Prestados baixado com sucesso.',
-                               f'{cnpj_cpf}',
-                               'PRESTADOS',
-                               'info-gradient',
-                               'SUCESSO',
-                               'success-gradient')
-
-        except Exception as e:
-            includeLogData(nome_thread,
-                           f'XML - {name_company}',
-                           f'Empresa não possui XML dos serviços Prestados.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-    except Exception as e:
-        print(f'#ERRO AO BAIXAR PDF PRESTADO!')
-        try:
-            AcessoPagina = WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="TEXTBLOCK2"]')))
-            if 'Não Autorizado!' in AcessoPagina.get_attribute("textContent"):
-                print(f'{AcessoPagina.get_attribute("textContent")}')
-                driver.execute_script("document.body.style.zoom = '120%'")
-                pasta_destino = f"{pastaArquivos}/Sem Acesso - HWWNotaFiscalEletronica1.png"
-                if os.path.exists(pasta_destino):
-                    os.remove(pasta_destino)
-                driver.save_screenshot(pasta_destino)
-                driver.execute_script("document.body.style.zoom = '100%'")
-                includeLogData(nome_thread,
-                               f'XML - {name_company}',
-                               f'Empresa não possui acesso a tela "HWWNotaFiscalEletronica1" para download do XML de serviços prestados...',
-                               f'{cnpj_cpf}',
-                               'PRESTADOS',
-                               'info-gradient',
-                               'ERRO',
-                               'danger-gradient')
-
-        except Exception as e:
-            includeLogData(nome_thread,
-                           f'XML - {name_company}',
-                           f'Erro ao baixar XML de serviços prestados.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'ATENÇÃO',
-                           'warning-gradient')
-
-
-def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
+'''
+def exec_XML_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
     actions = ActionChains(driver)
-    try:
-        home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwencerramento'
-        try:
-            driver.get(f'{home_page}')
-        except TimeoutException:
-            driver.refresh()
-        print('GUIAISSQN - Executando')
-        erro = False
-        try:
-            campoCompMes = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, '_INENCMES')))
-            selectCompMes = Select(campoCompMes)
-            selectCompMes.select_by_value(str(int(execMes)))
-            sleep(0.2)
-            campoCompAno = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, '_INENCANO')))
-            campoCompAno.send_keys(f"{execAno}")
-            sleep(0.2)
-            campoTipo = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, '_INENCTIPO')))
-            selectTipo = Select(campoTipo)
-            selectTipo.select_by_value(str("P"))  # SERVIÇO PRESTADO GUIA ISSQN
-            sleep(0.2)
-            campoSubmit = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.NAME, 'SEARCHBUTTON')))
-            campoSubmit.click()
-            erro = False
-
-        except Exception as e:
-            print('Erro DAM(GUIA ISSQN)')
-            erro = True
-
-        if erro:
-            raise Exception('Erro ao gerar GUIA ISSQN!')
-
-        try:
-            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.XPATH, "//*[text()='Não Existe Encerramento com os Dados Informados.']")))
-            driver.execute_script("document.body.style.zoom = '75%'")
-            pasta_destino = f"{pastaArquivos}/Sem GUIA ISSQN.png"
-            if os.path.exists(pasta_destino):
-                os.remove(pasta_destino)
-            driver.save_screenshot(pasta_destino)
-            driver.execute_script("document.body.style.zoom = '100%'")
-            alterou_data = False
-        except Exception:
-            alterou_data = True
-
-        if not alterou_data:
-            includeLogData(nome_thread,
-                           f'GUIA - {name_company}',
-                           f'Emissão de Guia Não Necessária/Empresa sem Movimento Prestado.',
-                           f'{cnpj_cpf}',
-                           'ISSQN',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-
-        if alterou_data:
-            linkDAM = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, '//*[@id="TBDAM_0001"]/tbody/tr/td/a')))
-            url_gerar = linkDAM.get_attribute("href")
-            primeira_aspas = url_gerar.find("'")
-            segunda_aspas = url_gerar.find("'", primeira_aspas + 1)
-            url_entre_aspas = url_gerar[primeira_aspas + 1:segunda_aspas]
-            url_sem_percentil27 = url_entre_aspas.split("%27")[0]
-            url_final = url_sem_percentil27
-            if url_final:
-                try:
-                    driver.get(
-                        f'http://s32.asp.srv.br:8080/issonline/servlet/{url_final}')
-                except TimeoutException:
-                    driver.refresh()
-                print("ISSQN - Guia pronta para download!")
-                try:
-                    WebDriverWait(driver, 5).until(
-                        EC.frame_to_be_available_and_switch_to_it((By.NAME, 'Embpage'))
-                    )
-                    WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located(
-                            (By.XPATH,
-                             '//*[@id="open-button"]'))).click()
-                except Exception as e:
-                    print('Clicou para baixar guia, com except.')
-
-                padrao_nome = 'DOCUMENTO_ARRECADACAO_MUNICIPAL'
-                novo_padrao = 'Guia-ISSQN'
-
-                downloaded = False
-                while not downloaded:
-                    guiasTributo = glob.glob(os.path.join(pastaArquivos, '*' + padrao_nome + '*.pdf'))
-                    if len(guiasTributo) >= 1:
-                        sleep(2)
-                        downloaded = True
-                    else:
-                        downloaded = False
-
-                guiasTributo = glob.glob(os.path.join(pastaArquivos, '*' + padrao_nome + '*.pdf'))
-                for guia in guiasTributo:
-                    os.rename(guia, os.path.join(pastaArquivos, novo_padrao + '.pdf'))
-
-                home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
-                try:
-                    driver.get(f'{home_page}')
-                except TimeoutException:
-                    driver.refresh()
-                includeLogData(nome_thread,
-                               f'GUIA - {name_company}',
-                               f'Guia ISSQN baixada com sucesso.',
-                               f'{cnpj_cpf}',
-                               'ISSQN',
-                               'info-gradient',
-                               'SUCESSO',
-                               'success-gradient')
-
-    except Exception as error:
-        includeLogData(nome_thread,
-                       f'GUIA - {name_company}',
-                       f'Erro ao baixar GUIA ISSQN.',
-                       f'{cnpj_cpf}',
-                       'ISSQN',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-        print(error)
-
-
-def exec_GUIAISSQN_old01_01_2024(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
-    actions = ActionChains(driver)
-    try:
-        home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
-        try:
-            driver.get(f'{home_page}')
-        except TimeoutException:
-            driver.refresh()
-        print('GUIAISSQN - Executando')
-        CampoGuia = driver.find_element(By.XPATH, "//*[text()='Guia de Recolhimento']")
-        CampoGuia.click()
-        CampoConsulta = driver.find_element(By.XPATH,
-                                            "//*[text()='Consulta de Débitos e Emissão de 2ª Via']")
-        CampoConsulta.click()
-        mes = int(execMes)
-        ano = int(execAno)
-
-        CampoCompetencia = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 f"//*[@name='W0010_PARCELAMES']")))
-        CampoCompetencia.click()
-        # CampoCompetencia_Select = Select(CampoCompetencia)
-        # CampoCompetencia_Select.select_by_value = execMes
-
-        for i in range(mes):
-            actions.send_keys(Keys.DOWN).perform()
-            sleep(0.1)
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 "//*[@id='W0010_PARCELAANO']"))).send_keys(execAno)
-
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 f"//*[@name='W0010SEARCHBUTTON']"))).click()
-
-        # aqui pega o proximo mês (fim dele) para vencimento da guia.
-        if mes == 12:
-            fim_proximo_mes = datetime(ano + 1, 2, 1) + timedelta(days=-1)
-        elif mes == 11:
-            fim_proximo_mes = datetime(ano + 1, 1, 1) + timedelta(days=-1)
-        else:
-            fim_proximo_mes = datetime(ano, mes + 2, 1) + timedelta(days=-1)
-
-        fim_proximo_mes = fim_proximo_mes.strftime("%d/%m/%Y")
-
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located(
-            (By.XPATH, '//*[@id="W0010_DATAVENCIMENTO"]'))).send_keys(fim_proximo_mes)
-
-        sleep(100)
-        driver.find_element(By.XPATH, '//*[@id="W0010IMGATUALIZARVENCIMENTO"]').click()
-
-        alterou_data = True
-
-        try:
-            campoerro = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="W0010TBL4"]/tbody/tr/td/span/menu/li')))
-            texto_erro = campoerro.get_attribute("textContent")
-            if 'O Máximo de dias permitidos para acréscimo a data de vencimento é de 30 dias.' in texto_erro:
-                hoje = datetime.now() + timedelta(days=30)
-                limite_vencimento = hoje.strftime("%d/%m/%Y")
-                driver.find_element(By.XPATH,
-                                    '//*[@id="W0010_DATAVENCIMENTO"]').send_keys(
-                    limite_vencimento)
-                driver.find_element(By.XPATH,
-                                    '//*[@id="W0010IMGATUALIZARVENCIMENTO"]').click()
-                includeLogData(nome_thread,
-                               f'GUIA - {name_company}',
-                               f'Data de vencimento da guia setado para: {limite_vencimento} devido ao limit de 30 dias atingido.',
-                               f'{cnpj_cpf}',
-                               'ISSQN',
-                               'info-gradient',
-                               'SUCESSO',
-                               'success-gradient')
-        except Exception as error:
-            print('GUIAISSQN - Alteração da data de vencimento realizada!')
-
-        if not alterou_data:
-            includeLogData(nome_thread,
-                           f'GUIA - {name_company}',
-                           f'Emissão de Guia Não Necessária/Empresa sem Movimento Prestado.',
-                           f'{cnpj_cpf}',
-                           'ISSQN',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-            raise Exception('Data não alterada!')
-
-        if alterou_data:
-            elemento_interar_data = driver.find_elements(By.XPATH,
-                                                         '//*[@id="span_W0010TCDPARCELAVENCIMENTO_0001"]')
-            for index, elemento in enumerate(elemento_interar_data, start=1):
-                texto_do_elemento = elemento.get_attribute("textContent")
-                if fim_proximo_mes in texto_do_elemento:
-                    index_corresp = index
-                    elemento_interar_tributo = driver.find_elements(By.XPATH,
-                                                                    '//*[@id="span_W0010IMPABREVIACAO_0001"]')
-                    for index2, elemento2 in enumerate(elemento_interar_tributo,
-                                                       start=index_corresp):
-                        texto_do_elemento = elemento2.get_attribute("textContent")
-                        tipo_tributo = 'ISSQN MENS'
-                        if tipo_tributo in texto_do_elemento and index == index2:
-                            driver.find_element(By.XPATH,
-                                                f'//*[@id="W0010GRID1"]/tbody/tr[{index2 + 1}]/td[1]/span/input').click()
-                            driver.find_element(By.XPATH,
-                                                '//*[@id="W0010BTNAVANCAR"]').click()
-                            botaoGerarDAM = WebDriverWait(driver, 5).until(
-                                EC.presence_of_element_located((By.XPATH,
-                                                                '//*[@id="W0010TBATUALIZAVENCIMENTO1"]/tbody/tr/td[2]/p/a')))
-                            url_gerar = botaoGerarDAM.get_attribute("href")
-                            primeira_aspas = url_gerar.find("'")
-                            segunda_aspas = url_gerar.find("'", primeira_aspas + 1)
-                            url_entre_aspas = url_gerar[primeira_aspas + 1:segunda_aspas]
-                            url_sem_percentil27 = url_entre_aspas.split("%27")[0]
-                            url_final = url_sem_percentil27
-                            if url_final:
-                                try:
-                                    driver.get(
-                                        f'http://s32.asp.srv.br:8080/issonline/servlet/{url_final}')
-                                except TimeoutException:
-                                    driver.refresh()
-                                print("ISSQN - Guia pronta para download!")
-                                try:
-                                    WebDriverWait(driver, 5).until(
-                                        EC.frame_to_be_available_and_switch_to_it((By.NAME, 'Embpage'))
-                                    )
-                                    WebDriverWait(driver, 5).until(
-                                        EC.presence_of_element_located(
-                                            (By.XPATH,
-                                             '//*[@id="open-button"]'))).click()
-                                except Exception as e:
-                                    print('Clicou para baixar guia, com except.')
-
-                                padrao_nome = 'DOCUMENTO_ARRECADACAO_MUNICIPAL'
-                                novo_padrao = 'Guia-ISSQN'
-
-                                downloaded = False
-                                while not downloaded:
-                                    guiasTributo = glob.glob(os.path.join(pastaArquivos, '*' + padrao_nome + '*.pdf'))
-                                    if len(guiasTributo) >= 1:
-                                        sleep(2)
-                                        downloaded = True
-                                    else:
-                                        downloaded = False
-
-                                guiasTributo = glob.glob(os.path.join(pastaArquivos, '*' + padrao_nome + '*.pdf'))
-                                for guia in guiasTributo:
-                                    os.rename(guia, os.path.join(pastaArquivos, novo_padrao + '.pdf'))
-
-                                home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
-                                try:
-                                    driver.get(f'{home_page}')
-                                except TimeoutException:
-                                    driver.refresh()
-                                includeLogData(nome_thread,
-                                               f'GUIA - {name_company}',
-                                               f'Guia ISSQN baixada com sucesso.',
-                                               f'{cnpj_cpf}',
-                                               'ISSQN',
-                                               'info-gradient',
-                                               'SUCESSO',
-                                               'success-gradient')
-                            else:
-                                print("Nenhuma URL encontrada na string.")
-                            break
-    except Exception as error:
-        includeLogData(nome_thread,
-                       f'GUIA - {name_company}',
-                       f'Erro ao baixar GUIA ISSQN.',
-                       f'{cnpj_cpf}',
-                       'ISSQN',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-        print(error)
-
-
-def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno):
-    link_ausencia_tomado = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwminhanotafiscaleletronica'
-    mes = int(execMes)
-    ano = int(execAno)
-    try:
-        driver.get(f'{link_ausencia_tomado}')
-    except TimeoutException:
-        driver.refresh()
-
-    ausencia_tomado = False
-    try:
-        driver.find_element(By.XPATH,
-                            '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select').click()
-        driver.find_element(By.XPATH,
-                            f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]').click()
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
-        sleep(0.5)
-
-        qtd_validos_tomado = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="Table3"]/tbody/tr[3]/td[1]/p'))).get_attribute(
-            "textContent")
-        includeLogData(nome_thread,
-                       f'ENCERRAMENTO - {name_company}',
-                       f'Qtd. de TOMADOS válidos {qtd_validos_tomado}.',
-                       f'{cnpj_cpf}',
-                       'TOMADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-        qtd_validos_tomado = int(''.join(filter(str.isdigit, qtd_validos_tomado)))
-        if qtd_validos_tomado >= 1:
-            ausencia_tomado = False
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Nenhuma ausência a realizar.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-        else:
-            ausencia_tomado = True
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Necessário emissão de ausência.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-    except Exception as error:
-        includeLogData(nome_thread,
-                       f'ENCERRAMENTO - {name_company}',
-                       f'Sem acesso a página de ausência de tomados.',
-                       f'{cnpj_cpf}',
-                       'TOMADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-
-    if ausencia_tomado:
-        print('AUSENCIA DE TOMADO')
-        do_ausencia_tomado = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwausenciaretencao'
-        try:
-            driver.get(f'{do_ausencia_tomado}')
-        except TimeoutException:
-            driver.refresh()
-        try:
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="NEWCONTROL"]'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH,
-                     '//*[@id="TABLE2"]/tbody/tr/td[2]/select'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH,
-                     f'//*[@id="TABLE2"]/tbody/tr/td[2]/select/option[{mes}]'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="RETTIPO"]'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="RETTIPO"]/option[3]'))).click()  # TOMADO
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="TABLE6"]/tbody/tr/td[1]/input[1]'))).click()
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Ausência de serviços Tomados realizada com sucesso.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-        except Exception as error:
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Ausência não necessária / não realizada.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'ATENÇÃO',
-                           'warning-gradient')
-    else:
-        try:
-            print('RESOLVENDO PENDENCIAS')
-            link_encerramento = 'http://s32.asp.srv.br:8080/issonline/servlet/hencerramentomensal'
-            try:
-                driver.get(f'{link_encerramento}')
-            except TimeoutException:
-                driver.refresh()
-            driver.find_element(By.XPATH, '//*[@id="W0015TAB_0002"]').click()
-            tomados_encerrar_pendencias = driver.find_element(By.XPATH,
-                                                              '//*[@id="W0017IMGPENDENCIAS"]')
-            tomados_encerrar_pendencias.click()
-            driver.find_element(By.XPATH, '//*[@id="IMGPENDENCIAS"]').click()
-            try:
-                link_pendencias = 'http://s32.asp.srv.br:8080/issonline/servlet/hservicotomadopendencias'
-                try:
-                    driver.get(f'{link_pendencias}')
-                except TimeoutException:
-                    driver.refresh()
-                driver.find_element(By.XPATH, '//*[@id="IMGTODOS"]').click()
-                driver.find_element(By.XPATH, '//*[@id="IMGACEITAR"]').click()
-                driver.find_element(By.XPATH, '//*[@id="BTNENCERRAR"]').click()
-                includeLogData(nome_thread,
-                               f'ENCERRAMENTO - {name_company}',
-                               f'Encerramento de pendências realizado.',
-                               f'{cnpj_cpf}',
-                               'TOMADOS',
-                               'info-gradient',
-                               'SUCESSO',
-                               'success-gradient')
-            except Exception as error:
-                try:
-                    driver.get(f'{link_encerramento}')
-                except TimeoutException:
-                    driver.refresh()
-
-        except (NoSuchElementException, ElementNotInteractableException):
-            driver.find_element(By.XPATH, '//*[@id="W0015TAB_0002"]').click()
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Encerramento de pendências realizado.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-
-        try:
-            print('ENCERRANDO TOMADO')
-            link_encerramento = 'http://s32.asp.srv.br:8080/issonline/servlet/hencerramentomensal'
-            try:
-                driver.get(f'{link_encerramento}')
-            except TimeoutException:
-                driver.refresh()
-            driver.find_element(By.XPATH, '//*[@id="W0015TAB_0002"]').click()
-            tomados_encerrar = driver.find_element(By.XPATH,
-                                                   '//*[@id="W0017IMGCONSOLIDADO"]')
-            tomados_encerrar.click()
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Encerramento de serviços Tomados realizado.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-            try:
-                alert = Alert(driver)
-                alert.accept()
-            except Exception as e:
-                print("Não tem botão Alert")
-                home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
-                try:
-                    driver.get(f'{home_page}')
-                except TimeoutException:
-                    driver.refresh()
-
-        except (NoSuchElementException, ElementNotInteractableException):
-            home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
-            try:
-                driver.get(f'{home_page}')
-            except TimeoutException:
-                driver.refresh()
-        home_page = 'http://s32.asp.srv.br:8080/issonline/servlet/hhome'
-        try:
-            driver.get(f'{home_page}')
-        except TimeoutException:
-            driver.refresh()
-
-
-def exec_ENC_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno):
-    link_ausencia_prestado = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwnotafiscaleletronica1'
-    mes = int(execMes)
-    ano = int(execAno)
-    try:
-        driver.get(f'{link_ausencia_prestado}')
-    except TimeoutException:
-        driver.refresh()
-
-    ausencia_prestado = False
-    try:
-        driver.find_element(By.XPATH,
-                            '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select').click()
-        driver.find_element(By.XPATH,
-                            f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]').click()
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
-        sleep(0.5)
-
-        qtd_validos_prestado = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="Table3"]/tbody/tr[3]/td[1]/p'))).get_attribute(
-            "textContent")
-        includeLogData(nome_thread,
-                       f'ENCERRAMENTO - {name_company}',
-                       f'Qtd. de PRESTADOS válidos {qtd_validos_prestado}.',
-                       f'{cnpj_cpf}',
-                       'PRESTADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-        qtd_validos_prestado = int(''.join(filter(str.isdigit, qtd_validos_prestado)))
-        if qtd_validos_prestado >= 1:
-            ausencia_prestado = False
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Nenhuma ausência a realizar.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-        else:
-            ausencia_prestado = True
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Necessário emissão de ausência.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-    except Exception as error:
-        includeLogData(nome_thread,
-                       f'ENCERRAMENTO - {name_company}',
-                       f'Sem acesso a página de ausência de prestados.',
-                       f'{cnpj_cpf}',
-                       'PRESTADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
-
-    if ausencia_prestado:
-        print('AUSENCIA DE PRESTADO')
-        do_ausencia_prestado = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwausenciaretencao'
-        try:
-            driver.get(f'{do_ausencia_prestado}')
-        except TimeoutException:
-            driver.refresh()
-        try:
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="NEWCONTROL"]'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH,
-                     '//*[@id="TABLE2"]/tbody/tr/td[2]/select'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH,
-                     f'//*[@id="TABLE2"]/tbody/tr/td[2]/select/option[{mes}]'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="RETTIPO"]'))).click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH,
-                     '//*[@id="RETTIPO"]/option[2]'))).click()  # PRESTADO
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="TABLE6"]/tbody/tr/td[1]/input[1]'))).click()
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Ausência de serviços Prestados realizada com sucesso.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-        except Exception as error:
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Ausência não necessária / não realizada.',
-                           f'{cnpj_cpf}',
-                           'PRESTADOS',
-                           'info-gradient',
-                           'ATENÇÃO',
-                           'warning-gradient')
-    else:
-        print('ENCERRANDO PRESTADO')
-        link_encerramento = 'http://s32.asp.srv.br:8080/issonline/servlet/hencerramentomensal'
-        try:
-            driver.get(f'{link_encerramento}')
-        except TimeoutException:
-            driver.refresh()
-
-        try:
-            driver.find_element(By.XPATH,
-                                '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select').click()
-            driver.find_element(By.XPATH,
-                                f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]').click()
-            selectYear = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH,
-                     '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-            filtroYear = Select(selectYear)
-            filtroYear.select_by_visible_text(f"{ano}")
-            sleep(0.5)
-
-            prestados_encerrar = driver.find_element(By.XPATH,
-                                                     '//*[@id="W0017IMGCONSOLIDADO"]')
-            prestados_encerrar.click()
-            alert = Alert(driver)
-            alert.accept()
-            includeLogData(nome_thread,
-                           f'ENCERRAMENTO - {name_company}',
-                           f'Encerramento de serviços Prestados realizado.',
-                           f'{cnpj_cpf}',
-                           'TOMADOS',
-                           'info-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-        except Exception as e:
-            driver.find_element(By.XPATH, '//*[@id="W0015TAB_0002"]').click()
-
-
-def exec_NFSE_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
     mes = int(execMes)
     ano = int(execAno)
 
@@ -1936,100 +1412,321 @@ def exec_NFSE_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, exec
                    'info-gradient',
                    'SUCESSO',
                    'success-gradient')
+
+    pasta_xml_tomados = os.path.join(pastaArquivos, 'XML - Tomados')
+
+    # Crie a pasta se não existir
+    if not os.path.exists(pasta_xml_tomados):
+        os.makedirs(pasta_xml_tomados)
+        print(f"Pasta criada: {pasta_xml_tomados}")
+
+
     try:
-        xml_prestadas = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwminhanotafiscaleletronica'
+        xml_prestadas = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/notasubstitutiva'
         driver.get(f'{xml_prestadas}')
-        driver.find_element(By.XPATH,
-                            '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select').click()
-        driver.find_element(By.XPATH,
-                            f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]').click()
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
-        sleep(0.5)
 
-        original_window = driver.current_window_handle
-        driver.find_element(By.XPATH, '//*[@id="IMGIMPRIMIR"]').click()
+        ng_select = WebDriverWait(driver, 9).until(
+            EC.presence_of_element_located((By.XPATH, "//ng-select"))
+        )
+        ng_select.click()
 
-        WebDriverWait(driver, 10).until(EC.number_of_windows_to_be(2))
-        for window_handle in driver.window_handles:
-            if window_handle != original_window:
-                driver.switch_to.window(window_handle)
-                break
+        # Certifique-se de que idDoc está definido antes de usar
 
-        current_url = driver.current_url
-        driver.close()
-        driver.switch_to.window(original_window)
-        try:
-            driver.get(current_url)
-        except TimeoutException:
-            driver.refresh()
+        for char in f'{cnpj_cpf}':
+            # Espera até que o campo de entrada esteja presente
+            campoEntrada = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+            )
 
-        CampoInicio = driver.find_element(By.XPATH, '//*[@id="_NUMINICIAL"]')
-        CampoInicio.clear()
-        CampoInicio.send_keys('1')
-        CampoFinal = driver.find_element(By.XPATH, '//*[@id="_NUMFINAL"]')
-        CampoFinal.clear()
-        CampoFinal.send_keys('1000000000')
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="TABLE1"]/tbody/tr[3]/td/p/input'))).click()
-        driver.switch_to.frame('Embpage')
+            # Envia o texto desejado para o campo de entrada
+            campoEntrada.send_keys(cnpj_cpf)  # Envia a string completa
 
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH, '//*[@id="open-button"]'))).click()
+            # Espera que a lista de resultados apareça
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()  # Clica na primeira opção
 
-        downloaded = False
-        while not downloaded:
-            arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
-            for arquivo in arquivos_zip:
-                if 'Nota_Fiscal_Eletronica_' in arquivo:
-                    if verify_downloaded(arquivo) is True:
-                        downloaded = True
+            # Preencher o campo de data
+            campoData = WebDriverWait(driver, 1).until(
+                EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="competencia"]'))
+            )
+            campoData.click()  # Clica no campo de data
+            campoData.clear()  # Limpa o campo antes de digitar
+            campoData.send_keys(f"{mes}/{ano}")  # Digita a data no formato desejado
+            campoData.send_keys(Keys.TAB)
+
+            sleep(2)
+
+            # Selecionar a quantidade de itens por página
+            selectQuantidade = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.ID, 'pagination'))  # Ajuste o nome conforme necessário
+            )
+            select = Select(selectQuantidade)
+            select.select_by_visible_text('100')  # Seleciona 100 itens por página
+
+            driver.execute_script("window.scrollTo(0, 0);")
+
+            sleep(2)
+
+            try:
+                WebDriverWait(driver, 10).until(
+                    EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+                )
+
+                # Executar o comando JavaScript para clicar no checkbox desejado
+                driver.execute_script("document.querySelector('thead .form-check-input').click();")
+                sleep(1)  # Esperar um momento para ver se o estado muda
+
+                # Verificar o estado do checkbox
+                checkbox = driver.find_element(By.CSS_SELECTOR, 'thead .form-check-input')
+                is_checked = checkbox.is_selected()
+                print(f"O checkbox está marcado: {is_checked}")
+
+            except Exception as e:
+                print(f"Ocorreu um erro ao tentar marcar o checkbox: {e}")
+
+            # Verificar se há mais páginas e iterar por elas
+            while True:
+                try:
+                    # Localiza o elemento de paginação
+                    paginacao = driver.find_element(By.XPATH,
+                                                    '/html/body/app-root/app-layout/div/div[2]/app-nota-substitutiva/div/div[3]/div/div/div[1]/ngb-pagination')
+
+                    # Localiza o botão de próxima página
+                    proximaPagina = paginacao.find_element(By.XPATH,
+                                                           './/li[@class="page-item ng-star-inserted"]/a[@aria-label="Next"]')
+
+                    # Verifica se o <a> está visível e habilitado
+                    if proximaPagina.is_displayed() and proximaPagina.is_enabled():
+                        proximaPagina.click()  # Clica na próxima página
+                        sleep(1)  # Aguarda o carregamento da nova página
+
+                        checkboxes = driver.find_elements(By.CSS_SELECTOR, 'thead .form-check-input')
+                        for checkbox in checkboxes:
+                            if not checkbox.is_selected():
+                                checkbox.click()  # Marca o checkbox se não estiver selecionado
+                        sleep(0.1)  # Aguarde a seleção
+
                     else:
-                        downloaded = False
-        sleep(1)
-        arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
-        for arquivo in arquivos_zip:
-            if 'Nota_Fiscal_Eletronica_' in arquivo:
-                novo_nome_xml = f"{pastaArquivos}/NOTAS - Tomado.pdf"
-                if os.path.exists(novo_nome_xml):
-                    os.remove(novo_nome_xml)
-                os.rename(arquivo, novo_nome_xml)
+                        break  # Sai do loop se o botão estiver desabilitado
 
-        includeLogData(nome_thread,
-                       f'NFSE - {name_company}',
-                       f'PDF de notas de serviços Tomados baixado com sucesso.',
-                       f'{cnpj_cpf}',
-                       'TOMADOS',
-                       'info-gradient',
-                       'SUCESSO',
-                       'success-gradient')
+                except NoSuchElementException:
+                    break  # Sai do loop se não houver mais páginas
 
-    except Exception as Error:
-        includeLogData(nome_thread,
-                       f'NFSE - {name_company}',
-                       f'Não há PDF de serviços Tomados.',
-                       f'{cnpj_cpf}',
-                       'TOMADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
+            sleep(1)
+
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            sleep(1)  # Aguarda um momento após a rolagem
+
+            original_window = driver.current_window_handle
+
+            driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
+            imprimir_notas = driver.find_element(By.XPATH,
+                                                 '//button[contains(@class, "btn-success") and contains(., "XML Seleção")]')
+            imprimir_notas.click()  # Clica no botão de imprimir
+
+            sleep(3)
+
+            if '{"code":2,"error":"Undefined array key 1"}' in driver.page_source:
+                print("Erro detectado: 'Undefined array key 1'. Fechando a janela...")
+                driver.close()  # Fecha a janela atual
+                driver.switch_to.window(driver.window_handles[0])  # Volta para a janela principal
+
+
+                continue  # Tente novamente
+
+                # Verifique se o download foi bem-sucedido (implemente sua lógica aqui)
+            if verificar_download(pastaArquivos):  # Função que verifica se o download foi concluído
+                print(f"Download concluído para {name_company}.")
+                break  # Saia do loop se o download foi bem-sucedido
+
+            try:
+                driver.close()  # Fecha a janela atual
+                driver.switch_to.window(driver.window_handles[0])  # Volta para a janela principal
+            except Exception as close_error:
+                print(f"Erro ao fechar a janela: {close_error}")
+
+
+        if tentativas == max_tentativas:
+            print(f"Falha ao concluir o download após {max_tentativas} tentativas.")
+
+            try:
+                downloaded = False
+                while not downloaded:
+                    NomeParcial = 'NFS'
+                    arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
+                    for arquivo in arquivos_zip:
+                        if NomeParcial in arquivo:
+                            if verify_downloaded(arquivo):
+                                downloaded = True
+                                print(f"Download reconhecido: {arquivo}")
+                            else:
+                                print(f"Download não reconhecido ainda: {arquivo}")
+                            sleep(1)
+
+                if downloaded:
+                    # Remover arquivos XML antigos
+                    NomeParcialPlanilha = 'NFSe'
+                    arquivos_planilha_remover = glob.glob(os.path.join(pastaArquivos, '*.xml'))
+                    for arquivo in arquivos_planilha_remover:
+                        if NomeParcialPlanilha in arquivo and os.path.exists(arquivo):
+                            os.remove(arquivo)
+
+                    # Extrair arquivos ZIP
+                    for arquivo in arquivos_zip:
+                        if NomeParcial in arquivo:
+                            with zipfile.ZipFile(arquivo, 'r') as nome_zip:
+                                nome_zip.extractall(path=pastaArquivos)  # Extrai todos os arquivos XML sem renomeá-los
+                                print(f"Arquivos extraídos de: {arquivo}")  # Mensagem de depuração
+
+                    arquivos_xml = glob.glob(os.path.join(pastaArquivos, '*.xml'))
+                    print(f"Arquivos XML encontrados após extração: {arquivos_xml}")  # Depuração
+
+                    # Mover os arquivos XML para a nova pasta
+                    for arquivo in os.listdir(pastaArquivos):
+                        novo_nome_parcial = 'NFSe20'
+                        if arquivo.endswith('.xml') and novo_nome_parcial in arquivo: # Verifica se é um arquivo XML
+                            novo_nome = arquivo[-10:]  # Mantém os últimos 6 caracteres
+                            novo_nome_completo = f"{novo_nome}"  # Adiciona a extensão .xml
+                            caminho_origem = os.path.join(pastaArquivos, arquivo)
+                            caminho_destino = os.path.join(pasta_xml_tomados, novo_nome_completo)
+
+                            # Move e renomeia o arquivo
+                            shutil.move(caminho_origem, caminho_destino)
+                            print(f"Arquivo movido: {caminho_origem} -> {caminho_destino}")
+
+                        else:
+                            print(f"Arquivo não encontrado para mover: {arquivo}")  # Depuração
+                limpar_pasta(pastaArquivos)
+
+            except Exception as e:
+                # Tratamento da exceção
+                print(e)
+    except Exception as e:
+        # Tratamento da exceção
+        print(e)
+'''
+
+
+def exec_PDF_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    actions = ActionChains(driver)
+    mes = int(execMes)
+    ano = int(execAno)
+
+    try:
+        # URL do relatório
+        prestados_relatorio2 = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/relatorios/notasescrituradas'
+        driver.get(prestados_relatorio2)
+
+        # Espera pelo dropdown de tipo de escrituração
+        ng_select = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//ng-select[@formcontrolname="tipo_escrituracao"]'))
+        )
+
+        if ng_select.is_enabled():
+            ng_select.click()
+            sleep(5)
+
+            # Seleciona a opção "Fiscal (Serviço Prestado)"
+            opcao_fiscal = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH,
+                                            '//div[contains(@class, "ng-option") and contains(.//span, "Fiscal (Serviço Prestado)")]'))
+            )
+            opcao_fiscal.click()
+
+            # Preenche os campos necessários
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(f"{mes}/{ano}").perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.3)
+            actions.send_keys(f"{mes}/{ano}").perform()
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(f"{cnpj_cpf}").perform()
+
+            # Espera que a lista de resultados apareça
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()  # Clica na primeira opção
+
+            # Clica no botão "Imprimir"
+            imprimir_relatorio = driver.find_element(By.XPATH,
+                                                     '//button[contains(@class, "btn-success") and contains(., "Imprimir")]')
+            imprimir_relatorio.click()  # Clica no botão de imprimir
+
+            # Espera pelo download do arquivo e renomeia
+            caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "NFS-e - Prestados.pdf", intervalo=5)
+
+            # Verifica se o arquivo foi baixado com sucesso
+            if os.path.exists(caminho_pdf):
+                print("PDF baixado e renomeado com sucesso:", caminho_pdf)
+
+                # Registrar log de sucesso
+                includeLogData(
+                    nome_thread,
+                    f'NFSE - {name_company}',
+                    f'PDF de relatório de NFSE escrituradas - Prestador baixado com sucesso.',
+                    f'{cnpj_cpf}',
+                    'PRESTADOS',
+                    'info-gradient',
+                    'SUCESSO',
+                    'success-gradient'
+                )
+            else:
+                print("Erro: O PDF não foi baixado.")
+                includeLogData(
+                    nome_thread,
+                    f'NFSE - {name_company}',
+                    f"Erro: O PDF não foi baixado.",
+                    f'{cnpj_cpf}',
+                    'PRESTADOS',
+                    'info-gradient',
+                    'ATENÇÃO',
+                    'warning-gradient'
+                )
+        else:
+            print("Dropdown de tipo de escrituração não está habilitado.")
+    except Exception as e:
+        print(f"Erro geral na execução do PDF: {e}")
+        includeLogData(
+            nome_thread,
+            f'NFSE - {name_company}',
+            f'Erro geral na execução do PDF: {e}',
+            f'{cnpj_cpf}',
+            'PRESTADOS',
+            'info-gradient',
+            'ATENÇÃO',
+            'warning-gradient'
+        )
+
+        # Salvar captura de tela em caso de erro
         driver.execute_script("document.body.style.zoom = '75%'")
-        pasta_destino = f"{pastaArquivos}/ERRO PDF NOTAS TOMADO.png"
+        pasta_destino = f"{pastaArquivos}/ERRO PDF NFSE PRESTADO.png"
         if os.path.exists(pasta_destino):
             os.remove(pasta_destino)
         driver.save_screenshot(pasta_destino)
         driver.execute_script("document.body.style.zoom = '100%'")
+        limpar_pasta(pastaArquivos)
 
-
-def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos):
+'''def exec_XML_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    actions = ActionChains(driver)
     mes = int(execMes)
     ano = int(execAno)
+    ultimo_dia = calendar.monthrange(ano, mes)[1]  # Obtém o último dia do mês
 
     includeLogData(nome_thread,
                    f'NFSE - {name_company}',
@@ -2040,180 +1737,2133 @@ def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, execMes, ex
                    'SUCESSO',
                    'success-gradient')
 
+    pasta_xml_prestados = os.path.join(pastaArquivos, 'XML - Prestados')
+
+    # Crie a pasta se não existir
+    if not os.path.exists(pasta_xml_prestados):
+        os.makedirs(pasta_xml_prestados)
+        print(f"Pasta criada: {pasta_xml_prestados}")
+
     try:
-        xml_prestadas = 'http://s32.asp.srv.br:8080/issonline/servlet/hwwnotafiscaleletronica1'
+        xml_prestadas = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/notaeletronica'
         driver.get(f'{xml_prestadas}')
-        driver.find_element(By.XPATH,
-                            '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select').click()
-        driver.find_element(By.XPATH,
-                            f'//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[2]/select/option[{mes}]').click()
-        selectYear = WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="W0004TBCOMPETENCIA"]/tbody/tr/td[4]/select')))
-        filtroYear = Select(selectYear)
-        filtroYear.select_by_visible_text(f"{ano}")
+        ng_select = WebDriverWait(driver, 9).until(
+            EC.presence_of_element_located((By.XPATH, "//ng-select"))
+        )
+        ng_select.click()
 
-        '##### BAIXA O EXCEL PARA PEGAR MAIOR E MENOR NUMERO DE NOTA DO LOTE #####'
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="CTRLEXPORT"]'))).click()
+        # Certifique-se de que idDoc está definido antes de usar
 
-        downloaded = False
-        while not downloaded:
-            arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.xls'))
-            for arquivo in arquivos_zip:
-                if 'WWNotaFiscalEletronica' in arquivo:
-                    if verify_downloaded(arquivo) is True:
-                        downloaded = True
-                    else:
-                        downloaded = False
-        sleep(0.5)
+        for char in f'{cnpj_cpf}':
+            # Espera até que o campo de entrada esteja presente
+            campoEntrada = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+            )
 
-        arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.xls'))
-        for arquivo in arquivos_zip:
-            if 'WWNotaFiscalEletronica' in arquivo:
-                listaNotas = pd.read_excel(arquivo)
-                notaMin = listaNotas['Nota'].min()
-                notaMax = listaNotas['Nota'].max()
-                if os.path.exists(arquivo):
-                    os.remove(arquivo)
+            # Envia o texto desejado para o campo de entrada
+            campoEntrada.send_keys(cnpj_cpf)  # Envia a string completa
 
-        try:
-            script = "document.querySelector('[id*=\'gxModalWindowDiv\']').style.display = 'none';"
-            driver.execute_script(script)
-        except Exception:
+            # Espera que a lista de resultados apareça
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()  # Clica na primeira opção
+
+            # Preencher o campo de data inicial
+            campoDatainicial = WebDriverWait(driver, 1).until(
+                EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="nfse_data_inicial"]'))
+            )
+            campoDatainicial.click()  # Clica no campo de data
+            campoDatainicial.clear()  # Limpa o campo antes de digitar
+            campoDatainicial.send_keys(f"01/{mes}/{ano}")  # Digita a data no formato desejado
+            campoDatainicial.send_keys(Keys.TAB)
+
+            sleep(0.5)
+
+            # Preencher o campo de data final
+            campoDatafinal = WebDriverWait(driver, 1).until(
+                EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="nfse_data_final"]'))
+            )
+            campoDatafinal.click()  # Clica no campo de data
+            campoDatafinal.clear()  # Limpa o campo antes de digitar
+            campoDatafinal.send_keys(f"{ultimo_dia}/{mes}/{ano}")  # Digita a data no formato desejado
+            campoDatafinal.send_keys(Keys.TAB)
+
+            # Selecionar a quantidade de itens por página
+            selectQuantidade = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.ID, 'pagination'))  # Ajuste o nome conforme necessário
+            )
+            select = Select(selectQuantidade)
+            select.select_by_visible_text('100')  # Seleciona 100 itens por página
+            print("Paginou")
+            driver.execute_script("window.scrollTo(0, 0);")
+            print("Subiu")
             sleep(2)
 
-        WebDriverWait(driver, 5).until(
-            EC.presence_of_element_located(
-                (By.XPATH,
-                 '//*[@id="IMGIMPRIMIR"]'))).click()
-        original_window = driver.current_window_handle
-
-        WebDriverWait(driver, 10).until(EC.number_of_windows_to_be(2))
-        for window_handle in driver.window_handles:
-            if window_handle != original_window:
-                driver.switch_to.window(window_handle)
-                break
-
-        current_url = driver.current_url
-        driver.close()
-        driver.switch_to.window(original_window)
-        try:
-            driver.get(current_url)
-        except TimeoutException:
-            driver.refresh()
-
-        maxNotasPorDownload = 50
-        arquivosPDFCriados = []
-        for notaInicio in range(notaMin, notaMax, maxNotasPorDownload):
-            notaFinal = min(notaInicio + maxNotasPorDownload - 1, notaMax)
-
-            driver.find_element(By.XPATH, '//*[@id="_NUMINICIAL"]').send_keys(f'{notaInicio}')
-            CampoFinal = driver.find_element(By.XPATH, '//*[@id="_NUMFINAL"]')
-            CampoFinal.clear()
-            CampoFinal.send_keys(f'{notaFinal}')
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="TBL20"]/tbody/tr[3]/td/p/input'))).click()
-            driver.switch_to.frame('Embpage')
-
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="open-button"]'))).click()
-
-            downloaded = False
-            while not downloaded:
-                arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
-                for arquivo in arquivos_zip:
-                    if 'Nota_Fiscal_Eletronica_' in arquivo:
-                        if verify_downloaded(arquivo) is True:
-                            downloaded = True
-                        else:
-                            downloaded = False
-            sleep(0.5)
-            arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
-            for arquivo in arquivos_zip:
-                if 'Nota_Fiscal_Eletronica_' in arquivo:
-                    novo_nome_xml = f"{pastaArquivos}/NOTAS - Prestados {notaInicio}-{notaFinal}.pdf"
-                    if os.path.exists(novo_nome_xml):
-                        os.remove(novo_nome_xml)
-                    os.rename(arquivo, novo_nome_xml)
-
-                    '#CRIA LISTA DE PDFS#'
-                    arquivosPDFCriados.append(novo_nome_xml)
-
-            '#### ENTRA NOVAMENTE NA PAGINA PARA INSERIR NOTAS ####'
             try:
-                driver.get(current_url)
-            except TimeoutException:
-                driver.refresh()
+                WebDriverWait(driver, 10).until(
+                    EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+                )
 
-        if notaMax % maxNotasPorDownload != 0:
-            '#### BAIXA O ULTIMO ARQUIVO PARA GARANTIR O RESTANTE DOS ARQUIVOS ####'
-            ultimoNotaMin = (notaMax // maxNotasPorDownload) * maxNotasPorDownload + 1
+                # Executar o comando JavaScript para clicar no checkbox desejado
+                driver.execute_script("document.querySelector('thead .form-check-input').click();")
+                sleep(1)  # Esperar um momento para ver se o estado muda
 
-            driver.find_element(By.XPATH, '//*[@id="_NUMINICIAL"]').send_keys(f'{ultimoNotaMin}')
-            CampoFinal = driver.find_element(By.XPATH, '//*[@id="_NUMFINAL"]')
-            CampoFinal.clear()
-            CampoFinal.send_keys(f'{notaMax}')
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="TBL20"]/tbody/tr[3]/td/p/input'))).click()
-            driver.switch_to.frame('Embpage')
+                # Verificar o estado do checkbox
+                checkbox = driver.find_element(By.CSS_SELECTOR, 'thead .form-check-input')
+                is_checked = checkbox.is_selected()
+                print(f"O checkbox está marcado: {is_checked}")
 
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, '//*[@id="open-button"]'))).click()
+            except Exception as e:
+                print(f"Ocorreu um erro ao tentar marcar o checkbox: {e}")
 
-            downloaded = False
-            while not downloaded:
-                arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
-                for arquivo in arquivos_zip:
-                    if 'Nota_Fiscal_Eletronica_' in arquivo:
-                        if verify_downloaded(arquivo) is True:
-                            downloaded = True
-                        else:
-                            downloaded = False
-            sleep(0.5)
-            arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.pdf'))
-            for arquivo in arquivos_zip:
-                if 'Nota_Fiscal_Eletronica_' in arquivo:
-                    os.remove(arquivo)
+            # Verificar se há mais páginas e iterar por elas
+            try:
+                # Localiza o elemento de paginação
+                paginacao = driver.find_element(By.XPATH,
+                                                '/html/body/app-root/app-layout/div/div[2]/app-nota-substitutiva/div/div[3]/div/div/div[1]/ngb-pagination')
+
+                # Localiza o botão de próxima página
+                proximaPagina = paginacao.find_element(By.XPATH,
+                                                       './/a[@aria-label="Next"]')
+                print("Encontrou botão de próxima página")
+
+                if proximaPagina.is_displayed() and not proximaPagina.get_attribute("aria-disabled"):
+                    proximaPagina.click()  # Clica na próxima página
+                    sleep(1)  # Aguarda o carregamento da nova página
+
+                    driver.execute_script("window.scrollTo(0, 0);")
+                    print("Subiu")
+                    sleep(2)
+
+                    # Espera até que a tabela esteja visível novamente
+                    WebDriverWait(driver, 5).until(
+                        EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+                    )
+
+                    checkboxes = driver.find_elements(By.CSS_SELECTOR, 'thead .form-check-input')
+                    for checkbox in checkboxes:
+                        if not checkbox.is_selected():
+                            checkbox.click()  # Marca o checkbox se não estiver selecionado
+                    sleep(3)  # Aguarde a seleção
+
+                else:
+                    break  # Sai do loop se o botão estiver desabilitado
+
+            except NoSuchElementException:
+                break  # Sai do loop se não houver mais páginas
+
             sleep(1)
 
-        pdf_writer = PyPDF2.PdfWriter()
-        for arquivo in arquivosPDFCriados:
-            with open(arquivo, 'rb') as pdf_file:
-                pdf_reader = PyPDF2.PdfReader(pdf_file)
-                for pagina in range(len(pdf_reader.pages)):
-                    pagina_atual = pdf_reader.pages[pagina]
-                    pdf_writer.add_page(pagina_atual)
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            sleep(1)  # Aguarda um momento após a rolagem
 
-            os.remove(arquivo)
+            original_window = driver.current_window_handle
 
-        ArquivoFinal = f"{pastaArquivos}/NOTAS - Prestados.pdf"
-        with open(ArquivoFinal, 'wb') as pdf_output:
-            pdf_writer.write(pdf_output)
+            driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
-        includeLogData(nome_thread,
-                       f'NFSE - {name_company}',
-                       f'PDF de notas de serviços Prestados baixado com sucesso.',
-                       f'{cnpj_cpf}',
-                       'PRESTADOS',
-                       'info-gradient',
-                       'SUCESSO',
-                       'success-gradient')
+            imprimir_notas = driver.find_element(By.XPATH,
+                                                 '//button[contains(@class, "btn-success") and contains(., "XML Seleção")]')
+            imprimir_notas.click()  # Clica no botão de imprimir
 
-    except Exception as Error:
-        sleep(2)
-        includeLogData(nome_thread,
-                       f'NFSE - {name_company}',
-                       f'Não há PDF de serviços Prestados.',
-                       f'{cnpj_cpf}',
-                       'PRESTADOS',
-                       'info-gradient',
-                       'ATENÇÃO',
-                       'warning-gradient')
+            try:
+                downloaded = False
+                while not downloaded:
+                    NomeParcial = 'NFS'
+                    arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
+                    for arquivo in arquivos_zip:
+                        if NomeParcial in arquivo:
+                            if verify_downloaded(arquivo):
+                                downloaded = True
+                                print(f"Download reconhecido: {arquivo}")
+                            else:
+                                print(f"Download não reconhecido ainda: {arquivo}")
+                            sleep(1)
+
+                if downloaded:
+                    # Remover arquivos XML antigos
+                    NomeParcialPlanilha = 'NFSe'
+                    arquivos_planilha_remover = glob.glob(os.path.join(pastaArquivos, '*.xml'))
+                    for arquivo in arquivos_planilha_remover:
+                        if NomeParcialPlanilha in arquivo and os.path.exists(arquivo):
+                            os.remove(arquivo)
+
+                    # Extrair arquivos ZIP
+                    for arquivo in arquivos_zip:
+                        if NomeParcial in arquivo:
+                            with zipfile.ZipFile(arquivo, 'r') as nome_zip:
+                                nome_zip.extractall(path=pastaArquivos)  # Extrai todos os arquivos XML sem renomeá-los
+                                print(f"Arquivos extraídos de: {arquivo}")  # Mensagem de depuração
+
+                    arquivos_xml = glob.glob(os.path.join(pastaArquivos, '*.xml'))
+                    print(f"Arquivos XML encontrados após extração: {arquivos_xml}")  # Depuração
+
+                    # Mover os arquivos XML para a nova pasta
+
+                    for arquivo in os.listdir(pastaArquivos):
+                        novo_nome_parcial = 'NFSe20'
+                        if arquivo.endswith('.xml') and novo_nome_parcial in arquivo: # Verifica se é um arquivo XML
+                            novo_nome = arquivo[-10:]  # Mantém os últimos 6 caracteres
+                            novo_nome_completo = f"{novo_nome}"  # Adiciona a extensão .xml
+                            caminho_origem = os.path.join(pastaArquivos, arquivo)
+                            caminho_destino = os.path.join(pasta_xml_prestados, novo_nome_completo)
+
+                            # Move e renomeia o arquivo
+                            shutil.move(caminho_origem, caminho_destino)
+                            print(f"Arquivo movido: {caminho_origem} -> {caminho_destino}")
+
+                        else:
+                            print(f"Arquivo não encontrado para mover: {arquivo}")  # Depuração
+
+            except Exception as e:
+                # Tratamento da exceção
+                print(e)
+    except Exception as e:
+    # Tratamento da exceção
+        print(e)'''
+
+def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    actions = ActionChains(driver)
+    mes = int(execMes)
+    ano = int(execAno)
+
+    try:
+        home_page = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/movimento'
+        try:
+            driver.get(f'{home_page}')
+        except TimeoutException:
+            driver.refresh()
+        print('GUIAISSQN - Executando')
+        erro = False
+
+        ng_select = WebDriverWait(driver, 9).until(
+            EC.presence_of_element_located((By.XPATH, "//ng-select"))
+        )
+        ng_select.click()
+
+        # Certifique-se de que idDoc está definido antes de usar
+
+        for char in f'{cnpj_cpf}':
+            # Espera até que o campo de entrada esteja presente
+            campoEntrada = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+            )
+
+            # Envia o texto desejado para o campo de entrada
+            campoEntrada.send_keys(cnpj_cpf)  # Envia a string completa
+
+            # Espera que a lista de resultados apareça
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()  # Clica na primeira opção
+
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(f"{mes}/{ano}").perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+
+            sleep(5)
+
+            driver.execute_script("window.scrollTo(0, 0);")
+            sleep(5)
+
+            radio_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//input[@type='radio' and @name='selected']"))
+            )
+
+            # Usar JavaScript para clicar no botão de rádio
+            driver.execute_script("arguments[0].click();", radio_button)
+            print("Botão de rádio clicado com sucesso usando JavaScript.")
+
+            sleep(5)
+
+            botao_segunda_via = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(@class, 'btn-info') and contains(text(), 'Segunda Via')]"))
+            )
+            botao_segunda_via.click()  # Clica no botão
+            print("Botão 'Segunda Via' clicado com sucesso.")
+
+            sleep(6)
+
+            div_imprimir = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//div[contains(@class, 'btn') and contains(text(), 'Imprimir')]"))
+            )
+            div_imprimir.click()  # Clica na <div>
+            print("Elemento 'Imprimir' clicado com sucesso.")
+
+            sleep(3)
+
+            caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "GUIA ISSQN.pdf", intervalo=5)
+
+            # Verifica se o arquivo foi baixado com sucesso
+            if os.path.exists(caminho_pdf):
+                print("PDF baixado e renomeado com sucesso:", caminho_pdf)
+
+                # Registrar log de sucesso
+                includeLogData(nome_thread,
+                               f'GUIA ISSQN - {name_company}',
+                               f'PDF de GUIA ISSQN baixado com sucesso.',
+                               f'{cnpj_cpf}',
+                               'GUIA ISSQN',
+                               'info-gradient',
+                               'SUCESSO',
+                               'success-gradient')
+
+            else:
+                print("Erro: O PDF não foi baixado.")
+                includeLogData(nome_thread,
+                f'GUIA ISSQN - {name_company}',
+                f'Erro ao baixar GUIA ISSQN.',
+                f'{cnpj_cpf}',
+                'GUIA ISSQN',
+                'info-gradient',
+                'ATENÇÃO',
+                'warning-gradient')
+
+        else:
+            print("Dropdown de tipo de escrituração não está habilitado.")
+    except Exception as e:
+        print(f"Erro geral na execução do PDF: {e}")
+
+        # Salvar captura de tela em caso de erro
+        driver.execute_script("document.body.style.zoom = '75%'")
+        pasta_destino = f"{pastaArquivos}/ERRO PDF NFSE PRESTADO.png"
+        if os.path.exists(pasta_destino):
+            os.remove(pasta_destino)
+        driver.save_screenshot(pasta_destino)
+        driver.execute_script("document.body.style.zoom = '100%'")
+        limpar_pasta(pastaArquivos)
+
+
+def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    actions = ActionChains(driver)
+    mes = int(execMes)
+    ano = int(execAno)
+
+    try:
+        home_page = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/fechamento'
+        try:
+            driver.get(f'{home_page}')
+        except TimeoutException:
+            driver.refresh()
+        print('Encerramento Tomados - Executando')
+        erro = False
+
+        ng_select = WebDriverWait(driver, 9).until(
+            EC.presence_of_element_located((By.XPATH, "//ng-select"))
+        )
+        ng_select.click()
+
+        for char in f'{cnpj_cpf}':
+            campoEntrada = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+            )
+            campoEntrada.send_keys(cnpj_cpf)
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()
+
+            ng_select = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-select[@formcontrolname="tipo"]'))
+            )
+
+            if ng_select.is_enabled():
+                ng_select.click()
+                sleep(5)
+
+                opcao_fiscal = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, '//div[contains(@class, "ng-option") and contains(.//span, "Serviço Tomado")]'))
+                )
+                opcao_fiscal.click()
+
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(f"{mes}/{ano}").perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+
+            sleep(3)
+
+            try:
+                elemento_nenhum_registro = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located(
+                        (By.XPATH, "//h6[text()='NÃO CONSTA REGISTRO DE FECHAMENTO PARA A REFERÊNCIA.']")
+                    )
+                )
+                # Se o elemento estiver presente, seguir o fluxo de declaração sem movimento
+                checkbox_label = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//label[contains(text(), 'Aceito declaração \"Sem Movimento\"')]"))
+                )
+                # Clicar no checkbox através do label
+                checkbox_label.click()
+                sleep(1)
+
+                botao_declarar = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Declarar Sem Movimento')]"))
+                )
+                botao_declarar.click()
+                print("Botão 'Declarar Sem Movimento' clicado. Aguardando download do PDF...")
+
+                # ✅ AGUARDAR ATÉ 10 SEGUNDOS PELA MENSAGEM DE ERRO
+                sleep(4)
+
+                # ✅ VERIFICAR SE APARECEU A MENSAGEM "FECHAMENTO SEM MOVIMENTO JÁ EFETUADO"
+                try:
+                    mensagem_erro = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.XPATH,
+                                                        "//span[@data-notify='message' and contains(text(), 'Fechamento sem movimento já efetuado!')]"))
+                    )
+                    print(
+                        "Detectada mensagem: 'Fechamento sem movimento já efetuado!' - Navegando para página de movimento...")
+
+                    # ✅ NAVEGAR PARA PÁGINA DE MOVIMENTO
+                    driver.get('https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/movimento')
+                    sleep(3)
+
+                    # ✅ PREENCHER EMPRESA
+                    ng_select_movimento = WebDriverWait(driver, 9).until(
+                        EC.presence_of_element_located((By.XPATH, "//ng-select"))
+                    )
+                    ng_select_movimento.click()
+
+                    campoEntrada_movimento = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+                    )
+                    campoEntrada_movimento.send_keys(cnpj_cpf)
+
+                    WebDriverWait(driver, 2).until(
+                        EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+                    )
+                    sleep(2)
+
+                    primeiraOpcao_movimento = WebDriverWait(driver, 1).until(
+                        EC.element_to_be_clickable(
+                            (By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+                    )
+                    primeiraOpcao_movimento.click()
+
+                    # ✅ PREENCHER DATA
+                    actions.send_keys(Keys.TAB).perform()
+                    sleep(0.5)
+                    actions.send_keys(f"{mes}/{ano}").perform()
+                    sleep(0.5)
+                    actions.send_keys(Keys.TAB).perform()
+                    sleep(3)
+
+                    # ✅ PROCURAR E SELECIONAR RADIO BUTTON PARA "ESCRITURAÇÃO SUBSTITUTIVA" COM SITUAÇÃO "SEM MOVIMENTO"
+                    try:
+                        # ✅ XPATH CORRIGIDO BASEADO NO HTML REAL
+                        radio_button = WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.XPATH,
+                                                            "//tr[td[contains(text(), 'Escrituração Substitutiva')] and td[contains(text(), 'Sem movimento')]]//input[@type='radio' and @name='selected']"
+                                                            ))
+                        )
+
+                        # ✅ USAR JAVASCRIPT PARA CLICAR NO RADIO BUTTON
+                        driver.execute_script("arguments[0].click();", radio_button)
+                        print(
+                            "Radio button selecionado para 'Escrituração Substitutiva' com situação 'Sem movimento' usando JavaScript.")
+
+                        sleep(5)
+
+                        # ✅ CLICAR NO BOTÃO "IMPRIMIR SEM MOVIMENTO"
+                        botao_imprimir = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable(
+                                (By.XPATH,
+                                 "//button[contains(@class, 'btn-info') and contains(text(), 'Imprimir Sem Movimento')]")
+                            )
+                        )
+                        botao_imprimir.click()
+                        print("Botão 'Imprimir Sem Movimento' clicado com sucesso.")
+
+                        sleep(6)
+
+                        # ✅ ESPERAR PELO DOWNLOAD E RENOMEAR ARQUIVO
+                        caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "DEC. SEM MOVIMENTO - TOMADOS.pdf",
+                                                                 intervalo=15)
+                        if caminho_pdf:
+                            print(f"Arquivo renomeado para: {caminho_pdf}")
+                        else:
+                            print("Falha ao renomear o arquivo.")
+
+                        print("Processo de movimento para TOMADOS concluído.")
+
+                    except Exception as e:
+                        print(f"Erro ao selecionar radio button na página de movimento: {e}")
+
+                except TimeoutException:
+                    # Não apareceu a mensagem de erro, continuar com download normal
+                    print("Mensagem de erro não detectada, continuando com download...")
+
+                    # Espera pelo download do arquivo e renomeia
+                    caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "DEC. SEM MOVIMENTO - TOMADOS.pdf",
+                                                             intervalo=15)
+                    if caminho_pdf:
+                        print(f"Arquivo renomeado para: {caminho_pdf}")
+                    else:
+                        print("Falha ao renomear o arquivo.")
+
+            except TimeoutException:
+                print("Registro encontrado, prosseguindo com o fluxo normal.")
+
+                try:
+                    WebDriverWait(driver, 10).until(
+                        EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+                    )
+
+                    driver.execute_script("document.querySelector('thead .form-check-input').click();")
+                    sleep(1)
+
+                    checkbox = driver.find_element(By.CSS_SELECTOR, 'thead .form-check-input')
+                    is_checked = checkbox.is_selected()
+                    print(f"O checkbox está marcado: {is_checked}")
+
+                except Exception as e:
+                    print(f"Ocorreu um erro ao tentar marcar o checkbox: {e}")
+
+                sleep(2)
+
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                sleep(3)
+
+                # Clicar no botão "Concluir Fechamento"
+                botaoConcluir = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, '.btn.btn-success'))
+                )
+                botaoConcluir.click()
+                sleep(2)
+
+                # Captura de tela
+                driver.execute_script("document.body.style.zoom = '75%'")
+                pasta_destino = f"{pastaArquivos}/Encerramento NFSE Tomadas - sucesso.png"
+                if os.path.exists(pasta_destino):
+                    os.remove(pasta_destino)
+                driver.save_screenshot(pasta_destino)
+                driver.execute_script("document.body.style.zoom = '100%'")
+
+            except Exception as e:
+                print(f"Ocorreu um erro na execução: {e}")
+
+    except Exception as e:
+        print(f"Ocorreu um erro na execução: {e}")
+
+
+def exec_ENC_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    actions = ActionChains(driver)
+    mes = int(execMes)
+    ano = int(execAno)
+
+    try:
+        home_page = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/fechamento'
+        try:
+            driver.get(f'{home_page}')
+        except TimeoutException:
+            driver.refresh()
+        print('Encerramento Prestados - Executando')
+        erro = False
+
+        ng_select = WebDriverWait(driver, 9).until(
+            EC.presence_of_element_located((By.XPATH, "//ng-select"))
+        )
+        ng_select.click()
+
+        for char in f'{cnpj_cpf}':
+            campoEntrada = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+            )
+            campoEntrada.send_keys(cnpj_cpf)
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()
+
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(f"{mes}/{ano}").perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+
+            sleep(3)
+
+            try:
+                # Verifica se não há registro
+                elemento_nenhum_registro = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located(
+                        (By.XPATH, "//h6[text()='NÃO CONSTA REGISTRO DE FECHAMENTO PARA A REFERÊNCIA.']")
+                    )
+                )
+                # Se o elemento estiver presente, seguir o fluxo de declaração sem movimento
+                checkbox_label = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//label[contains(text(), 'Aceito declaração \"Sem Movimento\"')]"))
+                )
+                checkbox_label.click()
+                sleep(1)
+
+                botao_declarar = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Declarar Sem Movimento')]"))
+                )
+                botao_declarar.click()
+                print("Botão 'Declarar Sem Movimento' clicado. Aguardando download do PDF...")
+
+                # ✅ AGUARDAR ATÉ 10 SEGUNDOS PELA MENSAGEM DE ERRO
+                sleep(4)
+
+                # ✅ VERIFICAR SE APARECEU A MENSAGEM "FECHAMENTO SEM MOVIMENTO JÁ EFETUADO"
+                try:
+                    mensagem_erro = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.XPATH,
+                                                        "//span[@data-notify='message' and contains(text(), 'Fechamento sem movimento já efetuado!')]"))
+                    )
+                    print(
+                        "Detectada mensagem: 'Fechamento sem movimento já efetuado!' - Navegando para página de movimento...")
+
+                    # ✅ NAVEGAR PARA PÁGINA DE MOVIMENTO
+                    driver.get('https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/movimento')
+                    sleep(3)
+
+                    # ✅ PREENCHER EMPRESA
+                    ng_select_movimento = WebDriverWait(driver, 9).until(
+                        EC.presence_of_element_located((By.XPATH, "//ng-select"))
+                    )
+                    ng_select_movimento.click()
+
+                    campoEntrada_movimento = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+                    )
+                    campoEntrada_movimento.send_keys(cnpj_cpf)
+
+                    WebDriverWait(driver, 2).until(
+                        EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+                    )
+                    sleep(2)
+
+                    primeiraOpcao_movimento = WebDriverWait(driver, 1).until(
+                        EC.element_to_be_clickable(
+                            (By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+                    )
+                    primeiraOpcao_movimento.click()
+
+                    # ✅ PREENCHER DATA
+                    actions.send_keys(Keys.TAB).perform()
+                    sleep(0.5)
+                    actions.send_keys(f"{mes}/{ano}").perform()
+                    sleep(0.5)
+                    actions.send_keys(Keys.TAB).perform()
+                    sleep(3)
+
+                    # ✅ PROCURAR E SELECIONAR RADIO BUTTON PARA "ESCRITURAÇÃO FISCAL" COM SITUAÇÃO "SEM MOVIMENTO"
+                    try:
+                        # ✅ XPATH CORRIGIDO BASEADO NO HTML REAL
+                        radio_button = WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.XPATH,
+                                                            "//tr[td[contains(text(), 'Escrituração Fiscal')] and td[contains(text(), 'Sem movimento')]]//input[@type='radio' and @name='selected']"
+                                                            ))
+                        )
+
+                        # ✅ USAR JAVASCRIPT PARA CLICAR NO RADIO BUTTON
+                        driver.execute_script("arguments[0].click();", radio_button)
+                        print(
+                            "Radio button selecionado para 'Escrituração Fiscal' com situação 'Sem movimento' usando JavaScript.")
+
+                        sleep(5)
+
+                        # ✅ CLICAR NO BOTÃO "IMPRIMIR SEM MOVIMENTO"
+                        botao_imprimir = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable(
+                                (By.XPATH,
+                                 "//button[contains(@class, 'btn-info') and contains(text(), 'Imprimir Sem Movimento')]")
+                            )
+                        )
+                        botao_imprimir.click()
+                        print("Botão 'Imprimir Sem Movimento' clicado com sucesso.")
+
+                        sleep(6)
+
+                        # ✅ ESPERAR PELO DOWNLOAD E RENOMEAR ARQUIVO
+                        caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "DEC. SEM MOVIMENTO - PRESTADOS.pdf",
+                                                                 intervalo=15)
+                        if caminho_pdf:
+                            print(f"Arquivo renomeado para: {caminho_pdf}")
+                        else:
+                            print("Falha ao renomear o arquivo.")
+
+                        print("Processo de movimento para PRESTADOS concluído.")
+
+                    except Exception as e:
+                        print(f"Erro ao selecionar radio button na página de movimento: {e}")
+
+                except TimeoutException:
+                    # Não apareceu a mensagem de erro, continuar com download normal
+                    print("Mensagem de erro não detectada, continuando com download...")
+
+                    # Espera pelo download do arquivo e renomeia
+                    caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "DEC. SEM MOVIMENTO - PRESTADOS.pdf",
+                                                             intervalo=15)
+                    if caminho_pdf:
+                        print(f"Arquivo renomeado para: {caminho_pdf}")
+                    else:
+                        print("Falha ao renomear o arquivo.")
+
+            except TimeoutException:
+                print("Registro encontrado, prosseguindo com o fluxo normal.")
+
+                try:
+                    WebDriverWait(driver, 10).until(
+                        EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+                    )
+
+                    driver.execute_script("document.querySelector('thead .form-check-input').click();")
+                    sleep(1)
+
+                    checkbox = driver.find_element(By.CSS_SELECTOR, 'thead .form-check-input')
+                    is_checked = checkbox.is_selected()
+                    print(f"O checkbox está marcado: {is_checked}")
+
+                except Exception as e:
+                    print(f"Ocorreu um erro ao tentar marcar o checkbox: {e}")
+
+                sleep(2)
+
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                sleep(3)
+
+                # Clicar no botão "Concluir Fechamento"
+                botaoConcluir = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, '.btn.btn-success'))
+                )
+                botaoConcluir.click()
+                sleep(2)
+
+                # Captura de tela
+                driver.execute_script("document.body.style.zoom = '75%'")
+                pasta_destino = f"{pastaArquivos}/Encerramento NFSE Prestados - sucesso.png"
+                if os.path.exists(pasta_destino):
+                    os.remove(pasta_destino)
+                driver.save_screenshot(pasta_destino)
+                driver.execute_script("document.body.style.zoom = '100%'")
+
+            except Exception as e:
+                print(f"Ocorreu um erro na execução: {e}")
+
+    except Exception as e:
+        print(f"Ocorreu um erro na execução: {e}")
+
+    actions = ActionChains(driver)
+    mes = int(execMes)
+    ano = int(execAno)
+
+    try:
+        home_page = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/fechamento'
+        try:
+            driver.get(f'{home_page}')
+        except TimeoutException:
+            driver.refresh()
+        print('Encerramento Prestados - Executando')
+        erro = False
+
+        ng_select = WebDriverWait(driver, 9).until(
+            EC.presence_of_element_located((By.XPATH, "//ng-select"))
+        )
+        ng_select.click()
+
+        for char in f'{cnpj_cpf}':
+            campoEntrada = WebDriverWait(driver, 2).until(
+                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+            )
+            campoEntrada.send_keys(cnpj_cpf)
+            WebDriverWait(driver, 2).until(
+                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+            )
+            sleep(2)
+            primeiraOpcao = WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+            )
+            primeiraOpcao.click()
+
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+            sleep(0.5)
+            actions.send_keys(f"{mes}/{ano}").perform()
+            sleep(0.5)
+            actions.send_keys(Keys.TAB).perform()
+
+            sleep(3)
+
+            try:
+                # Verifica se não há registro
+                elemento_nenhum_registro = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located(
+                        (By.XPATH, "//h6[text()='NÃO CONSTA REGISTRO DE FECHAMENTO PARA A REFERÊNCIA.']")
+                    )
+                )
+                # Se o elemento estiver presente, seguir o fluxo de declaração sem movimento
+                checkbox_label = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//label[contains(text(), 'Aceito declaração \"Sem Movimento\"')]"))
+                )
+                checkbox_label.click()
+                sleep(1)
+
+                botao_declarar = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Declarar Sem Movimento')]"))
+                )
+                botao_declarar.click()
+                print("Botão 'Declarar Sem Movimento' clicado. Aguardando download do PDF...")
+
+                # ✅ AGUARDAR ATÉ 10 SEGUNDOS PELA MENSAGEM DE ERRO
+                sleep(10)
+
+                # ✅ VERIFICAR SE APARECEU A MENSAGEM "FECHAMENTO SEM MOVIMENTO JÁ EFETUADO"
+                try:
+                    mensagem_erro = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.XPATH,
+                                                        "//span[@data-notify='message' and contains(text(), 'Fechamento sem movimento já efetuado!')]"))
+                    )
+                    print(
+                        "Detectada mensagem: 'Fechamento sem movimento já efetuado!' - Navegando para página de movimento...")
+
+                    # ✅ NAVEGAR PARA PÁGINA DE MOVIMENTO
+                    driver.get('https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/movimento')
+                    sleep(3)
+
+                    # ✅ PREENCHER EMPRESA
+                    ng_select_movimento = WebDriverWait(driver, 9).until(
+                        EC.presence_of_element_located((By.XPATH, "//ng-select"))
+                    )
+                    ng_select_movimento.click()
+
+                    campoEntrada_movimento = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+                    )
+                    campoEntrada_movimento.send_keys(cnpj_cpf)
+
+                    WebDriverWait(driver, 2).until(
+                        EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+                    )
+                    sleep(2)
+
+                    primeiraOpcao_movimento = WebDriverWait(driver, 1).until(
+                        EC.element_to_be_clickable(
+                            (By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+                    )
+                    primeiraOpcao_movimento.click()
+
+                    # ✅ PREENCHER DATA
+                    actions.send_keys(Keys.TAB).perform()
+                    sleep(0.5)
+                    actions.send_keys(f"{mes}/{ano}").perform()
+                    sleep(0.5)
+                    actions.send_keys(Keys.TAB).perform()
+                    sleep(3)
+
+                    # ✅ PROCURAR E SELECIONAR RADIO BUTTON PARA "ESCRITURAÇÃO FISCAL" COM SITUAÇÃO "SEM MOVIMENTO"
+                    try:
+                        # Encontrar todas as linhas da tabela
+                        linhas_tabela = driver.find_elements(By.XPATH, "//tr[contains(@class, 'ng-star-inserted')]")
+
+                        radio_button_encontrado = False
+                        for linha in linhas_tabela:
+                            try:
+                                # Verificar se é "Escrituração Fiscal"
+                                tipo_escrituracao = linha.find_element(By.XPATH,
+                                                                       ".//td[@class='text-start' and contains(text(), 'Escrituração Fiscal')]")
+
+                                # Verificar se a situação é "Sem movimento"
+                                situacao = linha.find_element(By.XPATH,
+                                                              ".//td[@class='text-center' and contains(text(), 'Sem movimento')]")
+
+                                # Se ambas as condições forem atendidas, selecionar o radio button
+                                radio_button = linha.find_element(By.XPATH,
+                                                                  ".//input[@type='radio' and @name='selected' and @class='form-check-input']")
+
+                                # ✅ USAR JAVASCRIPT PARA CLICAR NO RADIO BUTTON
+                                driver.execute_script("arguments[0].click();", radio_button)
+                                print(
+                                    "Radio button selecionado para 'Escrituração Fiscal' com situação 'Sem movimento' usando JavaScript.")
+                                radio_button_encontrado = True
+                                break
+
+                            except NoSuchElementException:
+                                continue
+
+                        if radio_button_encontrado:
+                            sleep(5)
+
+                            # ✅ CLICAR NO BOTÃO "IMPRIMIR SEM MOVIMENTO"
+                            botao_imprimir = WebDriverWait(driver, 10).until(
+                                EC.element_to_be_clickable(
+                                    (By.XPATH,
+                                     "//button[contains(@class, 'btn-info') and contains(text(), 'Imprimir Sem Movimento')]")
+                                )
+                            )
+                            botao_imprimir.click()
+                            print("Botão 'Imprimir Sem Movimento' clicado com sucesso.")
+
+                            sleep(6)
+
+                            # ✅ ESPERAR PELO DOWNLOAD E RENOMEAR ARQUIVO
+                            caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos,
+                                                                     "DEC. SEM MOVIMENTO - PRESTADOS.pdf", intervalo=15)
+                            if caminho_pdf:
+                                print(f"Arquivo renomeado para: {caminho_pdf}")
+                            else:
+                                print("Falha ao renomear o arquivo.")
+                        else:
+                            print("Radio button para 'Escrituração Fiscal' com 'Sem movimento' não encontrado.")
+
+                        print("Processo de movimento para PRESTADOS concluído.")
+
+                    except Exception as e:
+                        print(f"Erro ao selecionar radio button na página de movimento: {e}")
+
+                except TimeoutException:
+                    # Não apareceu a mensagem de erro, continuar com download normal
+                    print("Mensagem de erro não detectada, continuando com download...")
+
+                    # Espera pelo download do arquivo e renomeia
+                    caminho_pdf = esperar_e_renomear_arquivo(pastaArquivos, "DEC. SEM MOVIMENTO - PRESTADOS.pdf",
+                                                             intervalo=15)
+                    if caminho_pdf:
+                        print(f"Arquivo renomeado para: {caminho_pdf}")
+                    else:
+                        print("Falha ao renomear o arquivo.")
+
+            except TimeoutException:
+                print("Registro encontrado, prosseguindo com o fluxo normal.")
+
+                try:
+                    WebDriverWait(driver, 10).until(
+                        EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+                    )
+
+                    driver.execute_script("document.querySelector('thead .form-check-input').click();")
+                    sleep(1)
+
+                    checkbox = driver.find_element(By.CSS_SELECTOR, 'thead .form-check-input')
+                    is_checked = checkbox.is_selected()
+                    print(f"O checkbox está marcado: {is_checked}")
+
+                except Exception as e:
+                    print(f"Ocorreu um erro ao tentar marcar o checkbox: {e}")
+
+                sleep(2)
+
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+                sleep(3)
+
+                # Clicar no botão "Concluir Fechamento"
+                botaoConcluir = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, '.btn.btn-success'))
+                )
+                botaoConcluir.click()
+                sleep(2)
+
+                # Captura de tela
+                driver.execute_script("document.body.style.zoom = '75%'")
+                pasta_destino = f"{pastaArquivos}/Encerramento NFSE Prestados - sucesso.png"
+                if os.path.exists(pasta_destino):
+                    os.remove(pasta_destino)
+                driver.save_screenshot(pasta_destino)
+                driver.execute_script("document.body.style.zoom = '100%'")
+
+            except Exception as e:
+                print(f"Ocorreu um erro na execução: {e}")
+
+    except Exception as e:
+        print(f"Ocorreu um erro na execução: {e}")
+
+
+def exec_NFSE_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+ # ========== FUNÇÕES AUXILIARES INTERNAS ==========
+
+ def configurar_filtro_inicial():
+  """Configura o filtro inicial da página"""
+  ng_select = WebDriverWait(driver, 9).until(
+   EC.presence_of_element_located((By.XPATH, "//ng-select"))
+  )
+  ng_select.click()
+
+ def selecionar_empresa():
+  """Seleciona a empresa pelo CNPJ"""
+  campoEntrada = WebDriverWait(driver, 2).until(
+   EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+  )
+  campoEntrada.send_keys(cnpj_cpf)
+
+  WebDriverWait(driver, 2).until(
+   EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+  )
+  sleep(5)
+
+  primeiraOpcao = WebDriverWait(driver, 1).until(
+   EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+  )
+  primeiraOpcao.click()
+
+ def preencher_competencia():
+  """Preenche a competência (mês/ano)"""
+  campoData = WebDriverWait(driver, 1).until(
+   EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="competencia"]'))
+  )
+  campoData.click()
+  campoData.clear()
+  campoData.send_keys(f"{mes}/{ano}")
+  campoData.send_keys(Keys.TAB)
+  sleep(3)
+
+ def verificar_registros_encontrados():
+  """Verifica se há registros. Retorna True se houver, False caso contrário"""
+  try:
+   driver.find_element(By.XPATH, "//h6[contains(text(), 'Nenhum registro encontrado')]")
+   return False
+  except NoSuchElementException:
+   return True
+
+ def configurar_paginacao():
+  """Configura paginação para 100 itens"""
+  selectQuantidade = WebDriverWait(driver, 5).until(
+   EC.presence_of_element_located((By.ID, 'pagination'))
+  )
+  select = Select(selectQuantidade)
+  select.select_by_visible_text('100')
+
+  driver.execute_script("window.scrollTo(0, 0);")
+  sleep(2)
+
+ def desmarcar_notas_canceladas():
+  """Desmarca checkboxes de notas canceladas na página atual"""
+  try:
+   linhas_canceladas = driver.find_elements(By.XPATH, '//tr[.//strong[contains(text(), "Cancelada")]]')
+   total_canceladas = len(linhas_canceladas)
+
+   if total_canceladas > 0:
+    print(f"  🔍 Encontradas {total_canceladas} notas CANCELADAS nesta página")
+
+    for idx, linha in enumerate(linhas_canceladas, 1):
+     try:
+      checkbox = linha.find_element(By.XPATH, './/input[@type="checkbox"]')
+      if checkbox.is_selected():
+       driver.execute_script("arguments[0].click();", checkbox)
+       print(f"    ❌ Nota cancelada {idx}/{total_canceladas} desmarcada")
+       sleep(0.3)
+      else:
+       print(f"    ⚪ Nota cancelada {idx}/{total_canceladas} já estava desmarcada")
+     except Exception as e:
+      print(f"    ⚠️ Erro ao desmarcar nota cancelada {idx}: {e}")
+   else:
+    print("  ✅ Nenhuma nota cancelada encontrada nesta página")
+  except Exception as e:
+   print(f"  ⚠️ Erro ao buscar notas canceladas: {e}")
+
+ def marcar_todos_checkboxes():
+  """Marca todos os checkboxes e depois desmarca os cancelados em todas as páginas"""
+
+  print("\n" + "=" * 60)
+  print("PROCESSANDO PRIMEIRA PÁGINA")
+  print("=" * 60)
+
+  WebDriverWait(driver, 10).until(
+   EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+  )
+
+  driver.execute_script("window.scrollTo(0, 0);")
+  sleep(1)
+
+  driver.execute_script("document.querySelector('thead .form-check-input').click();")
+  sleep(1)
+  print("✅ Todos os checkboxes marcados")
+
+  desmarcar_notas_canceladas()
+
+  pagina_atual = 1
+  max_paginas = 50
+
+  while pagina_atual < max_paginas:
+   try:
+    print("\n" + "=" * 60)
+    print(f"INDO PARA PÁGINA {pagina_atual + 1}")
+    print("=" * 60)
+
+    sleep(1)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    sleep(0.5)
+
+    botoes_next = driver.find_elements(By.XPATH, '//a[@aria-label="Next"]')
+    if not botoes_next:
+     print("❌ Botão Next não encontrado - fim da paginação")
+     break
+
+    botao_next = botoes_next[0]
+    li_parent = botao_next.find_element(By.XPATH, '..')
+    classes_li = li_parent.get_attribute('class') or ''
+
+    if 'disabled' in classes_li.lower():
+     print("🛑 Última página alcançada (botão desabilitado)")
+     break
+
+    if not botao_next.is_displayed():
+     print("❌ Botão Next não está visível")
+     break
+
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao_next)
+    sleep(0.5)
+    driver.execute_script("arguments[0].click();", botao_next)
+    print("➡️ Clique no Next executado")
+
+    sleep(3)
+
+    WebDriverWait(driver, 10).until(
+     EC.presence_of_element_located((By.TAG_NAME, 'thead'))
+    )
+
+    driver.execute_script("window.scrollTo(0, 0);")
+    sleep(1)
+
+    print(f"☑️ Marcando checkboxes da página {pagina_atual + 1}...")
+
+    is_checked_inicial = driver.execute_script(
+     "return document.querySelector('thead .form-check-input').checked;"
+    )
+    print(f"  - Estado inicial: {is_checked_inicial}")
+
+    if is_checked_inicial:
+     print("  - Checkbox já marcado, fazendo toggle...")
+     driver.execute_script("document.querySelector('thead .form-check-input').click();")
+     sleep(0.5)
+     driver.execute_script("document.querySelector('thead .form-check-input').click();")
+     sleep(0.5)
+    else:
+     print("  - Checkbox desmarcado, marcando...")
+     driver.execute_script("document.querySelector('thead .form-check-input').click();")
+     sleep(0.5)
+
+    is_checked_final = driver.execute_script(
+     "return document.querySelector('thead .form-check-input').checked;"
+    )
+    print(f"✅ Todos marcados: {is_checked_final}")
+
+    desmarcar_notas_canceladas()
+    pagina_atual += 1
+
+   except Exception as e:
+    print(f"❌ ERRO: {e}")
+    import traceback
+    traceback.print_exc()
+    break
+
+  print("\n" + "=" * 60)
+  print(f"✅ TOTAL DE PÁGINAS PROCESSADAS: {pagina_atual}")
+  print("=" * 60 + "\n")
+
+ def baixar_xml(pasta_destino_xml):
+  """Faz o download dos XMLs selecionados"""
+  max_tentativas = 3
+  tentativa_atual = 0
+
+  while tentativa_atual < max_tentativas:
+   try:
+    if len(driver.window_handles) > 1:
+     main_window = driver.window_handles[0]
+     for handle in driver.window_handles[1:]:
+      driver.switch_to.window(handle)
+      driver.close()
+     driver.switch_to.window(main_window)
+
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    sleep(1)
+    driver.execute_script("window.scrollTo(0, 0);")
+    sleep(1)
+
+    baixar_xml_btn = WebDriverWait(driver, 10).until(
+     EC.presence_of_element_located((By.XPATH,
+                                     '//button[contains(@class, "btn-success") and contains(., "XML Seleção")]'))
+    )
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", baixar_xml_btn)
+    sleep(1)
+    driver.execute_script("arguments[0].click();", baixar_xml_btn)
+    sleep(3)
+
+    if '{"code":2,"error":"Undefined array key 1"}' in driver.page_source:
+     print("Erro detectado: 'Undefined array key 1'. Tentando novamente...")
+     tentativa_atual += 1
+     if tentativa_atual < max_tentativas:
+      refazer_busca()
+      continue
+     else:
+      break
+
+    arquivos_crdownload = [f for f in os.listdir(pastaArquivos) if f.endswith('.crdownload')]
+    if arquivos_crdownload:
+     print(f"Arquivo .crdownload detectado - Tentativa {tentativa_atual + 1}")
+     for arquivo in arquivos_crdownload:
+      try:
+       os.remove(os.path.join(pastaArquivos, arquivo))
+      except:
+       pass
+     tentativa_atual += 1
+     if tentativa_atual < max_tentativas:
+      sleep(3)
+      continue
+     else:
+      break
+
+    if aguardar_download_zip():
+     processar_zip_e_mover_xmls(pasta_destino_xml)
+     return True
+    else:
+     tentativa_atual += 1
+
+   except Exception as e:
+    print(f"Erro na tentativa {tentativa_atual + 1}: {e}")
+    tentativa_atual += 1
+    if tentativa_atual < max_tentativas:
+     sleep(3)
+
+  return False
+
+ def aguardar_download_zip():
+  """Aguarda o download do arquivo ZIP"""
+  downloaded = False
+  timeout_download = 60
+  start_time = time.time()
+
+  while not downloaded and (time.time() - start_time) < timeout_download:
+   NomeParcial = 'NFS'
+   arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
+   for arquivo in arquivos_zip:
+    if NomeParcial in os.path.basename(arquivo):
+     if verify_downloaded(arquivo):
+      downloaded = True
+      print(f"Download reconhecido: {arquivo}")
+      break
+   if not downloaded:
+    sleep(1)
+
+  return downloaded
+
+ def processar_zip_e_mover_xmls(pasta_destino_xml):
+  """
+  Extrai ZIP(s) e move XML(s) para pasta específica.
+  Correção: não filtra ZIP por '.xml' no nome; extrai todos os ZIPs baixados.
+  """
+  os.makedirs(pasta_destino_xml, exist_ok=True)
+
+  arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
+  if not arquivos_zip:
+   print("⚠️ Nenhum ZIP encontrado para extrair.")
+   return
+
+  for arquivo_zip in arquivos_zip:
+   try:
+    with zipfile.ZipFile(arquivo_zip, 'r') as z:
+     z.extractall(path=pastaArquivos)
+    print(f"✅ ZIP extraído: {arquivo_zip}")
+   except zipfile.BadZipFile:
+    print(f"❌ ZIP corrompido: {arquivo_zip}")
+    continue
+   except Exception as e:
+    print(f"❌ Erro ao extrair ZIP {arquivo_zip}: {e}")
+    continue
+
+  xmls_encontrados = []
+  for nome in os.listdir(pastaArquivos):
+   caminho = os.path.join(pastaArquivos, nome)
+   if os.path.isfile(caminho) and nome.lower().endswith('.xml'):
+    xmls_encontrados.append(caminho)
+
+  if not xmls_encontrados:
+   print("⚠️ Nenhum XML encontrado após extração.")
+   try:
+    print("Arquivos na pasta após extração:", os.listdir(pastaArquivos)[:80])
+   except:
+    pass
+  else:
+   for caminho_xml in xmls_encontrados:
+    nome_xml = os.path.basename(caminho_xml)
+    destino_xml = os.path.join(pasta_destino_xml, nome_xml)
+    try:
+     if os.path.exists(destino_xml):
+      try:
+       os.remove(destino_xml)
+      except:
+       pass
+     shutil.move(caminho_xml, destino_xml)
+     print(f"✅ XML movido: {nome_xml}")
+    except Exception as e:
+     print(f"❌ Erro ao mover XML {nome_xml}: {e}")
+
+  for arquivo_zip in arquivos_zip:
+   try:
+    os.remove(arquivo_zip)
+   except:
+    pass
+
+ # =================== HELPERS (PDF: IMPRIMIR COMO PDF VIA CDP) ===================
+
+ def _fechar_abas_extras():
+  """Garante apenas a aba principal aberta."""
+  if len(driver.window_handles) > 1:
+   main_window = driver.window_handles[0]
+   for handle in driver.window_handles[1:]:
+    driver.switch_to.window(handle)
+    driver.close()
+   driver.switch_to.window(main_window)
+
+ def _esperar_nova_aba(handles_antes, timeout=25):
+  """Espera abrir uma nova aba e retorna o handle novo."""
+  fim = time.time() + timeout
+  while time.time() < fim:
+   handles_agora = driver.window_handles
+   if len(handles_agora) > len(handles_antes):
+    novos = [h for h in handles_agora if h not in handles_antes]
+    if novos:
+     return novos[0]
+   sleep(0.2)
+  return None
+
+ def _salvar_pdf_cdp_print(caminho_saida):
+  """
+  Gera PDF da página atual usando Chrome DevTools (Page.printToPDF).
+  Funciona mesmo quando a aba abre HTML (DANFSE) e não um PDF nativo.
+  """
+  import base64
+
+  # aguarda o carregamento
+  try:
+   WebDriverWait(driver, 20).until(
+    lambda d: d.execute_script("return document.readyState") in ("interactive", "complete")
+   )
+  except:
+   pass
+
+  # dá tempo para renderizar conteúdo via JS
+  sleep(1.5)
+  try:
+   for _ in range(12):
+    txt_len = driver.execute_script("return (document.body && document.body.innerText || '').length;")
+    if txt_len and int(txt_len) > 50:
+     break
+    sleep(0.5)
+  except:
+   pass
+
+  result = driver.execute_cdp_cmd("Page.printToPDF", {
+   "printBackground": True,
+   "landscape": False,
+   "preferCSSPageSize": True,
+   "scale": 1
+  })
+
+  data = result.get("data")
+  if not data:
+   raise Exception("CDP Page.printToPDF não retornou 'data'.")
+
+  pdf_bytes = base64.b64decode(data)
+  if not pdf_bytes.startswith(b"%PDF"):
+   raise Exception("CDP gerou saída que não parece PDF (não inicia com %PDF).")
+
+  os.makedirs(os.path.dirname(caminho_saida), exist_ok=True)
+  with open(caminho_saida, "wb") as f:
+   f.write(pdf_bytes)
+
+  return caminho_saida
+
+ def baixar_pdf(nome_pdf):
+  """
+  Clique em 'Imprimir Seleção' abre nova aba (HTML do DANFSE).
+  Aqui a gente imprime a página para PDF via CDP e salva no disco.
+  """
+  max_tentativas_pdf = 3
+
+  for tentativa_pdf in range(1, max_tentativas_pdf + 1):
+   try:
+    _fechar_abas_extras()
+
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    sleep(1)
+    driver.execute_script("window.scrollTo(0, 0);")
+    sleep(1)
+
+    imprimir_notas = WebDriverWait(driver, 10).until(
+     EC.element_to_be_clickable((By.XPATH,
+                                 '//button[contains(@class, "btn-success") and contains(., "Imprimir Seleção")]'))
+    )
+
+    handles_antes = driver.window_handles[:]
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", imprimir_notas)
+    sleep(0.5)
+    driver.execute_script("arguments[0].click();", imprimir_notas)
+
+    handle_pdf = _esperar_nova_aba(handles_antes, timeout=25)
+    if not handle_pdf:
+     print(f"⚠️ Tentativa {tentativa_pdf}: não abriu nova aba do DANFSE.")
+     continue
+
+    driver.switch_to.window(handle_pdf)
+    WebDriverWait(driver, 20).until(lambda d: d.current_url and len(d.current_url) > 10)
+
+    url = driver.current_url
+    print(f"🔗 URL do DANFSE capturada: {url}")
+
+    caminho_saida = os.path.join(pastaArquivos, nome_pdf)
+    if os.path.exists(caminho_saida):
+     try:
+      os.remove(caminho_saida)
+     except:
+      pass
+
+    _salvar_pdf_cdp_print(caminho_saida)
+
+    driver.close()
+    driver.switch_to.window(driver.window_handles[0])
+
+    if os.path.exists(caminho_saida) and os.path.getsize(caminho_saida) > 0:
+     print(f"✅ PDF gerado via impressão: {caminho_saida}")
+     return caminho_saida
+
+    print(f"⚠️ Tentativa {tentativa_pdf}: arquivo não apareceu/está vazio.")
+    sleep(2)
+
+   except Exception as e:
+    print(f"Erro ao gerar PDF (tentativa {tentativa_pdf}): {e}")
+    try:
+     if len(driver.window_handles) > 1:
+      driver.switch_to.window(driver.window_handles[-1])
+      driver.close()
+     driver.switch_to.window(driver.window_handles[0])
+    except:
+     pass
+    sleep(2)
+
+  return None
+
+ def refazer_busca():
+  """Recarrega a página e refaz toda a busca"""
+  driver.get(xml_tomados)
+  sleep(3)
+
+  configurar_filtro_inicial()
+  selecionar_empresa()
+  preencher_competencia()
+  configurar_paginacao()
+  driver.execute_script("window.scrollTo(0, 0);")
+  sleep(2)
+  marcar_todos_checkboxes()
+
+ def capturar_screenshot_erro():
+  """Captura screenshot em caso de erro"""
+  try:
+   driver.execute_script("document.body.style.zoom = '75%'")
+   pasta_destino = f"{pastaArquivos}/ERRO_NFSE_TOMADOS.png"
+   if os.path.exists(pasta_destino):
+    os.remove(pasta_destino)
+   driver.save_screenshot(pasta_destino)
+   driver.execute_script("document.body.style.zoom = '100%'")
+  except:
+   pass
+
+ # ========== INÍCIO DA FUNÇÃO PRINCIPAL ==========
+
+ actions = ActionChains(driver)
+ mes = int(execMes)
+ ano = int(execAno)
+
+ includeLogData(nome_thread, f'NFSE - {name_company}',
+                f'Iniciando processo de download de NFSe de serviços Tomados.',
+                f'{cnpj_cpf}', 'TOMADOS', 'info-gradient',
+                'SUCESSO', 'success-gradient')
+
+ pasta_xml_tomados = os.path.join(pastaArquivos, 'XML - Tomados')
+ if not os.path.exists(pasta_xml_tomados):
+  os.makedirs(pasta_xml_tomados)
+  print(f"Pasta criada: {pasta_xml_tomados}")
+
+ try:
+  xml_tomados = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/notasubstitutiva'
+  driver.get(xml_tomados)
+  sleep(2)
+
+  configurar_filtro_inicial()
+  selecionar_empresa()
+  preencher_competencia()
+
+  if not verificar_registros_encontrados():
+   print("Nenhum registro encontrado.")
+   if os.path.exists(pasta_xml_tomados):
+    os.rmdir(pasta_xml_tomados)
+    print(f"Pasta '{pasta_xml_tomados}' removida.")
+
+   includeLogData(nome_thread, f'NFSE - {name_company}',
+                  f'Nenhum registro encontrado para o período.',
+                  f'{cnpj_cpf}', 'TOMADOS', 'info-gradient',
+                  'ATENÇÃO', 'warning-gradient')
+   return
+
+  print("Registros encontrados, prosseguindo...")
+
+  configurar_paginacao()
+  marcar_todos_checkboxes()
+
+  driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                         {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
+  xml_sucesso = baixar_xml(pasta_xml_tomados)
+  caminho_pdf = baixar_pdf("NOTAS - Tomados.pdf")
+
+  if caminho_pdf and os.path.exists(caminho_pdf):
+   includeLogData(nome_thread, f'NFSE - {name_company}',
+                  f'PDF e XML de NFS-E Tomados baixados com sucesso.',
+                  f'{cnpj_cpf}', 'TOMADOS', 'info-gradient',
+                  'SUCESSO', 'success-gradient')
+  else:
+   includeLogData(nome_thread, f'NFSE - {name_company}',
+                  f"Erro: O PDF não foi baixado.",
+                  f'{cnpj_cpf}', 'TOMADOS', 'info-gradient',
+                  'ATENÇÃO', 'warning-gradient')
+
+  if os.path.exists(pasta_xml_tomados) and not os.listdir(pasta_xml_tomados):
+   os.rmdir(pasta_xml_tomados)
+   print(f"Pasta XML vazia removida: {pasta_xml_tomados}")
+
+ except Exception as e:
+  print(f"Erro geral na execução: {e}")
+  capturar_screenshot_erro()
+
+  includeLogData(nome_thread, f'NFSE - {name_company}',
+                 f'Erro na execução: {str(e)}', f'{cnpj_cpf}',
+                 'TOMADOS', 'info-gradient', 'ERRO', 'danger-gradient')
+
+def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+ # ========== FUNÇÕES AUXILIARES INTERNAS ==========
+
+ def configurar_filtro_inicial():
+  """Configura o filtro inicial da página"""
+  ng_select = WebDriverWait(driver, 9).until(
+   EC.presence_of_element_located((By.XPATH, "//ng-select"))
+  )
+  ng_select.click()
+
+  el = WebDriverWait(driver, 10).until(
+   EC.element_to_be_clickable((By.CSS_SELECTOR, "i.far.fa-filter"))
+  )
+  driver.execute_script("arguments[0].click();", el)
+
+ def selecionar_empresa():
+  """Seleciona a empresa pelo CNPJ"""
+  campoEntrada = WebDriverWait(driver, 2).until(
+   EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
+  )
+  campoEntrada.send_keys(cnpj_cpf)
+
+  WebDriverWait(driver, 2).until(
+   EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
+  )
+  sleep(4)
+
+  primeiraOpcao = WebDriverWait(driver, 1).until(
+   EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+  )
+  primeiraOpcao.click()
+
+ def preencher_datas():
+  """Preenche as datas inicial e final"""
+  campoDatainicial = WebDriverWait(driver, 1).until(
+   EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="nfse_data_inicial"]'))
+  )
+  campoDatainicial.click()
+  campoDatainicial.clear()
+  campoDatainicial.send_keys(f"01/{mes}/{ano}")
+  campoDatainicial.send_keys(Keys.TAB)
+  sleep(0.5)
+
+  campoDatafinal = WebDriverWait(driver, 1).until(
+   EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="nfse_data_final"]'))
+  )
+  campoDatafinal.click()
+  campoDatafinal.clear()
+  campoDatafinal.send_keys(f"{ultimo_dia}/{mes}/{ano}")
+  campoDatafinal.send_keys(Keys.TAB)
+  sleep(3)
+
+ def selecionar_tipo_nota(tipo_nota):
+  """Seleciona o tipo de nota (CANCELADA ou EMITIDA)"""
+  for _ in range(7):
+   actions.send_keys(Keys.TAB)
+  actions.perform()
+
+  actions.send_keys(tipo_nota).perform()
+  sleep(1)
+
+  primeiraOpcao = WebDriverWait(driver, 1).until(
+   EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
+  )
+  primeiraOpcao.click()
+
+ def verificar_registros_encontrados():
+  """Verifica se há registros. Retorna True se houver, False caso contrário"""
+  try:
+   driver.find_element(By.XPATH, "//h6[contains(text(), 'Nenhum registro encontrado')]")
+   return False
+  except NoSuchElementException:
+   return True
+
+ def configurar_paginacao():
+  """Configura paginação para 100 itens"""
+  selectQuantidade = WebDriverWait(driver, 5).until(
+   EC.presence_of_element_located((By.ID, 'pagination'))
+  )
+  select = Select(selectQuantidade)
+  select.select_by_visible_text('100')
+
+  driver.execute_script("window.scrollTo(0, 0);")
+  sleep(2)
+
+ def marcar_todos_checkboxes():
+  """Marca todos os checkboxes em todas as páginas"""
+
+  print("\n" + "=" * 60)
+  print("MARCANDO CHECKBOXES DA PRIMEIRA PÁGINA")
+  print("=" * 60)
+
+  WebDriverWait(driver, 10).until(
+   EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
+  )
+
+  driver.execute_script("window.scrollTo(0, 0);")
+  sleep(1)
+
+  driver.execute_script("document.querySelector('thead .form-check-input').click();")
+  sleep(1)
+  print("✅ Checkbox da primeira página marcado")
+
+  pagina_atual = 1
+  max_paginas = 50
+
+  while pagina_atual < max_paginas:
+   try:
+    print("\n" + "=" * 60)
+    print(f"INDO PARA PÁGINA {pagina_atual + 1}")
+    print("=" * 60)
+
+    sleep(1)
+
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    sleep(0.5)
+
+    botoes_next = driver.find_elements(By.XPATH, '//a[@aria-label="Next"]')
+    if not botoes_next:
+     print("❌ Botão Next não encontrado - fim da paginação")
+     break
+
+    botao_next = botoes_next[0]
+    li_parent = botao_next.find_element(By.XPATH, '..')
+    classes_li = li_parent.get_attribute('class') or ''
+
+    if 'disabled' in classes_li.lower():
+     print("🛑 Última página alcançada (botão desabilitado)")
+     break
+
+    if not botao_next.is_displayed():
+     print("❌ Botão Next não está visível")
+     break
+
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao_next)
+    sleep(0.5)
+    driver.execute_script("arguments[0].click();", botao_next)
+    print("➡️ Clique no Next executado")
+
+    sleep(3)
+
+    WebDriverWait(driver, 10).until(
+     EC.presence_of_element_located((By.TAG_NAME, 'thead'))
+    )
+
+    driver.execute_script("window.scrollTo(0, 0);")
+    sleep(1)
+
+    print(f"☑️ Marcando checkboxes da página {pagina_atual + 1}...")
+
+    is_checked_inicial = driver.execute_script(
+     "return document.querySelector('thead .form-check-input').checked;"
+    )
+    print(f"  - Estado inicial: {is_checked_inicial}")
+
+    if is_checked_inicial:
+     print("  - Checkbox já marcado, fazendo toggle...")
+     driver.execute_script("document.querySelector('thead .form-check-input').click();")
+     sleep(0.5)
+     driver.execute_script("document.querySelector('thead .form-check-input').click();")
+     sleep(0.5)
+    else:
+     print("  - Checkbox desmarcado, marcando...")
+     driver.execute_script("document.querySelector('thead .form-check-input').click();")
+     sleep(0.5)
+
+    is_checked_final = driver.execute_script(
+     "return document.querySelector('thead .form-check-input').checked;"
+    )
+    print(f"✅ Estado final: {is_checked_final}")
+
+    pagina_atual += 1
+
+   except Exception as e:
+    print(f"❌ ERRO: {e}")
+    import traceback
+    traceback.print_exc()
+    break
+
+  print("\n" + "=" * 60)
+  print(f"✅ TOTAL DE PÁGINAS PROCESSADAS: {pagina_atual}")
+  print("=" * 60 + "\n")
+
+ def baixar_xml(pasta_destino_xml):
+  """Faz o download dos XMLs selecionados"""
+  max_tentativas = 3
+  tentativa_atual = 0
+
+  while tentativa_atual < max_tentativas:
+   try:
+    # Garantir foco na aba principal
+    if len(driver.window_handles) > 1:
+     main_window = driver.window_handles[0]
+     for handle in driver.window_handles[1:]:
+      driver.switch_to.window(handle)
+      driver.close()
+     driver.switch_to.window(main_window)
+
+    # Scroll e clique
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    sleep(1)
+    driver.execute_script("window.scrollTo(0, 0);")
+    sleep(1)
+
+    baixar_xml_btn = WebDriverWait(driver, 10).until(
+     EC.presence_of_element_located((By.XPATH,
+                                     '//button[contains(@class, "btn-success") and contains(., "XML Seleção")]'))
+    )
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", baixar_xml_btn)
+    sleep(1)
+    driver.execute_script("arguments[0].click();", baixar_xml_btn)
+    sleep(3)
+
+    # Verificar erro específico
+    if '{"code":2,"error":"Undefined array key 1"}' in driver.page_source:
+     print("Erro detectado: 'Undefined array key 1'. Tentando novamente...")
+     tentativa_atual += 1
+     if tentativa_atual < max_tentativas:
+      refazer_busca()
+      continue
+     else:
+      break
+
+    # Verificar .crdownload
+    arquivos_crdownload = [f for f in os.listdir(pastaArquivos) if f.endswith('.crdownload')]
+    if arquivos_crdownload:
+     print(f"Arquivo .crdownload detectado - Tentativa {tentativa_atual + 1}")
+     for arquivo in arquivos_crdownload:
+      try:
+       os.remove(os.path.join(pastaArquivos, arquivo))
+      except:
+       pass
+     tentativa_atual += 1
+     if tentativa_atual < max_tentativas:
+      sleep(3)
+      continue
+     else:
+      break
+
+    if aguardar_download_zip():
+     processar_zip_e_mover_xmls(pasta_destino_xml)
+     return True
+    else:
+     tentativa_atual += 1
+
+   except Exception as e:
+    print(f"Erro na tentativa {tentativa_atual + 1}: {e}")
+    tentativa_atual += 1
+    if tentativa_atual < max_tentativas:
+     sleep(3)
+
+  return False
+
+ def aguardar_download_zip():
+  """Aguarda o download do arquivo ZIP"""
+  downloaded = False
+  timeout_download = 60
+  start_time = time.time()
+
+  while not downloaded and (time.time() - start_time) < timeout_download:
+   nome_parcial = 'NFS'
+   arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
+   for arquivo in arquivos_zip:
+    if nome_parcial in os.path.basename(arquivo):
+     if verify_downloaded(arquivo):
+      downloaded = True
+      print(f"Download reconhecido: {arquivo}")
+      break
+   if not downloaded:
+    sleep(1)
+
+  return downloaded
+
+ def processar_zip_e_mover_xmls(pasta_destino_xml):
+  """
+  Extrai ZIP(s) e move XML(s) para pasta específica.
+  Ajuste alinhado com TOMADOS: extrai todos os ZIPs e move todos os .xml encontrados.
+  """
+  os.makedirs(pasta_destino_xml, exist_ok=True)
+
+  arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
+  if not arquivos_zip:
+   print("⚠️ Nenhum ZIP encontrado para extrair.")
+   return
+
+  # 1) Extrair todos os ZIPs
+  for arquivo_zip in arquivos_zip:
+   try:
+    with zipfile.ZipFile(arquivo_zip, 'r') as z:
+     z.extractall(path=pastaArquivos)
+    print(f"✅ ZIP extraído: {arquivo_zip}")
+   except zipfile.BadZipFile:
+    print(f"❌ ZIP corrompido: {arquivo_zip}")
+    continue
+   except Exception as e:
+    print(f"❌ Erro ao extrair ZIP {arquivo_zip}: {e}")
+    continue
+
+  # 2) Mover XMLs extraídos
+  xmls_encontrados = []
+  for nome in os.listdir(pastaArquivos):
+   caminho = os.path.join(pastaArquivos, nome)
+   if os.path.isfile(caminho) and nome.lower().endswith('.xml'):
+    xmls_encontrados.append(caminho)
+
+  if not xmls_encontrados:
+   print("⚠️ Nenhum XML encontrado após extração.")
+   try:
+    print("Arquivos na pasta após extração:", os.listdir(pastaArquivos)[:80])
+   except:
+    pass
+  else:
+   for caminho_xml in xmls_encontrados:
+    nome_xml = os.path.basename(caminho_xml)
+
+    # Se você FAZ QUESTÃO do rename "últimos 10 chars", descomente abaixo:
+    # novo_nome = nome_xml[-10:]
+    # destino_xml = os.path.join(pasta_destino_xml, novo_nome)
+
+    destino_xml = os.path.join(pasta_destino_xml, nome_xml)
+
+    try:
+     if os.path.exists(destino_xml):
+      try:
+       os.remove(destino_xml)
+      except:
+       pass
+     shutil.move(caminho_xml, destino_xml)
+     print(f"✅ XML movido: {os.path.basename(destino_xml)}")
+    except Exception as e:
+     print(f"❌ Erro ao mover XML {nome_xml}: {e}")
+
+  # 3) Limpar ZIPs
+  for arquivo_zip in arquivos_zip:
+   try:
+    os.remove(arquivo_zip)
+   except:
+    pass
+
+ # =================== HELPERS (PDF: IMPRIMIR COMO PDF VIA CDP) ===================
+
+ def _fechar_abas_extras():
+  """Garante apenas a aba principal aberta."""
+  if len(driver.window_handles) > 1:
+   main_window = driver.window_handles[0]
+   for handle in driver.window_handles[1:]:
+    driver.switch_to.window(handle)
+    driver.close()
+   driver.switch_to.window(main_window)
+
+ def _esperar_nova_aba(handles_antes, timeout=25):
+  """Espera abrir nova aba e retorna o handle novo."""
+  fim = time.time() + timeout
+  while time.time() < fim:
+   handles_agora = driver.window_handles
+   if len(handles_agora) > len(handles_antes):
+    novos = [h for h in handles_agora if h not in handles_antes]
+    if novos:
+     return novos[0]
+   sleep(0.2)
+  return None
+
+ def _salvar_pdf_cdp_print(caminho_saida):
+  """
+  Gera PDF da página atual usando Chrome DevTools (Page.printToPDF).
+  Funciona mesmo quando a aba abre HTML (DANFSE) e não um PDF nativo.
+  """
+  import base64
+
+  try:
+   WebDriverWait(driver, 20).until(
+    lambda d: d.execute_script("return document.readyState") in ("interactive", "complete")
+   )
+  except:
+   pass
+
+  sleep(1.5)
+  try:
+   for _ in range(12):
+    txt_len = driver.execute_script("return (document.body && document.body.innerText || '').length;")
+    if txt_len and int(txt_len) > 50:
+     break
+    sleep(0.5)
+  except:
+   pass
+
+  result = driver.execute_cdp_cmd("Page.printToPDF", {
+   "printBackground": True,
+   "landscape": False,
+   "preferCSSPageSize": True,
+   "scale": 1
+  })
+
+  data = result.get("data")
+  if not data:
+   raise Exception("CDP Page.printToPDF não retornou 'data'.")
+
+  pdf_bytes = base64.b64decode(data)
+  if not pdf_bytes.startswith(b"%PDF"):
+   raise Exception("CDP gerou saída que não parece PDF (não inicia com %PDF).")
+
+  os.makedirs(os.path.dirname(caminho_saida), exist_ok=True)
+  with open(caminho_saida, "wb") as f:
+   f.write(pdf_bytes)
+
+  return caminho_saida
+
+ def baixar_pdf(nome_pdf):
+  """
+  Em PRESTADOS, 'Imprimir Seleção' também abre página HTML.
+  Aqui a gente imprime a aba para PDF via CDP e salva.
+  """
+  max_tentativas_pdf = 3
+
+  for tentativa_pdf in range(1, max_tentativas_pdf + 1):
+   try:
+    _fechar_abas_extras()
+
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    sleep(1)
+    driver.execute_script("window.scrollTo(0, 0);")
+    sleep(1)
+
+    imprimir_notas = WebDriverWait(driver, 10).until(
+     EC.element_to_be_clickable((By.XPATH,
+                                 '//button[contains(@class, "btn-success") and contains(., "Imprimir Seleção")]'))
+    )
+
+    handles_antes = driver.window_handles[:]
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", imprimir_notas)
+    sleep(0.5)
+    driver.execute_script("arguments[0].click();", imprimir_notas)
+
+    handle_pdf = _esperar_nova_aba(handles_antes, timeout=25)
+    if not handle_pdf:
+     print(f"⚠️ Tentativa {tentativa_pdf}: não abriu nova aba do DANFSE.")
+     continue
+
+    driver.switch_to.window(handle_pdf)
+    WebDriverWait(driver, 20).until(lambda d: d.current_url and len(d.current_url) > 10)
+
+    url = driver.current_url
+    print(f"🔗 URL do DANFSE capturada: {url}")
+
+    caminho_saida = os.path.join(pastaArquivos, nome_pdf)
+    if os.path.exists(caminho_saida):
+     try:
+      os.remove(caminho_saida)
+     except:
+      pass
+
+    _salvar_pdf_cdp_print(caminho_saida)
+
+    driver.close()
+    driver.switch_to.window(driver.window_handles[0])
+
+    if os.path.exists(caminho_saida) and os.path.getsize(caminho_saida) > 0:
+     print(f"✅ PDF gerado via impressão: {caminho_saida}")
+     return caminho_saida
+
+    print(f"⚠️ Tentativa {tentativa_pdf}: arquivo não apareceu/está vazio.")
+    sleep(2)
+
+   except Exception as e:
+    print(f"Erro ao gerar PDF (tentativa {tentativa_pdf}): {e}")
+    try:
+     if len(driver.window_handles) > 1:
+      driver.switch_to.window(driver.window_handles[-1])
+      driver.close()
+     driver.switch_to.window(driver.window_handles[0])
+    except:
+     pass
+    sleep(2)
+
+  return None
+
+ def refazer_busca():
+  """Recarrega a página e refaz toda a busca"""
+  driver.get(xml_prestadas)
+  sleep(3)
+
+  configurar_filtro_inicial()
+  selecionar_empresa()
+  preencher_datas()
+  configurar_paginacao()
+  driver.execute_script("window.scrollTo(0, 0);")
+  sleep(2)
+  marcar_todos_checkboxes()
+
+ def processar_notas(tipo_nota, pasta_xml, nome_pdf):
+  """Processa notas de um tipo específico (CANCELADA ou EMITIDA)"""
+  print(f"\n{'=' * 60}")
+  print(f"Processando notas: {tipo_nota}")
+  print(f"{'=' * 60}\n")
+
+  configurar_filtro_inicial()
+  selecionar_empresa()
+  preencher_datas()
+  selecionar_tipo_nota(tipo_nota)
+
+  if not verificar_registros_encontrados():
+   print(f"Nenhum registro {tipo_nota} encontrado.")
+   try:
+    if os.path.exists(pasta_xml) and not os.listdir(pasta_xml):
+     os.rmdir(pasta_xml)
+     print(f"Pasta '{pasta_xml}' removida (sem registros).")
+   except Exception:
+    pass
+
+   includeLogData(nome_thread, f'NFSE {tipo_nota} - {name_company}',
+                  f'Nenhum registro encontrado para o período.',
+                  f'{cnpj_cpf}', 'PRESTADOS', 'info-gradient',
+                  'ATENÇÃO', 'warning-gradient')
+   return
+
+  print(f"Registros {tipo_nota} encontrados, prosseguindo...")
+
+  configurar_paginacao()
+  marcar_todos_checkboxes()
+
+  driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                         {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+
+  _ = baixar_xml(pasta_xml)
+  caminho_pdf = baixar_pdf(nome_pdf)
+
+  if caminho_pdf and os.path.exists(caminho_pdf):
+   includeLogData(nome_thread, f'NFSE - {name_company}',
+                  f'PDF e XML de NFS-E {tipo_nota} baixados com sucesso.',
+                  f'{cnpj_cpf}', 'PRESTADOS', 'info-gradient',
+                  'SUCESSO', 'success-gradient')
+  else:
+   includeLogData(nome_thread, f'NFSE - {name_company}',
+                  f"Erro: O PDF {tipo_nota} não foi baixado.",
+                  f'{cnpj_cpf}', 'PRESTADOS', 'info-gradient',
+                  'ATENÇÃO', 'warning-gradient')
+
+  try:
+   if os.path.exists(pasta_xml) and not os.listdir(pasta_xml):
+    os.rmdir(pasta_xml)
+    print(f"Pasta XML vazia removida: {pasta_xml}")
+  except Exception:
+   pass
+
+ def capturar_screenshot_erro():
+  """Captura screenshot em caso de erro"""
+  try:
+   driver.execute_script("document.body.style.zoom = '75%'")
+   pasta_destino = f"{pastaArquivos}/ERRO_NFSE_PRESTADOS.png"
+   if os.path.exists(pasta_destino):
+    os.remove(pasta_destino)
+   driver.save_screenshot(pasta_destino)
+   driver.execute_script("document.body.style.zoom = '100%'")
+  except:
+   pass
+
+ # ========== INÍCIO DA FUNÇÃO PRINCIPAL ==========
+
+ actions = ActionChains(driver)
+ mes = int(execMes)
+ ano = int(execAno)
+ ultimo_dia = calendar.monthrange(ano, mes)[1]
+
+ includeLogData(nome_thread, f'NFSE - {name_company}',
+                f'Iniciando processo de download de NFSe de serviços Prestados.',
+                f'{cnpj_cpf}', 'PRESTADOS', 'info-gradient',
+                'SUCESSO', 'success-gradient')
+
+ pasta_xml_prestados = os.path.join(pastaArquivos, 'XML - Prestados')
+ pasta_xml_cancelados = os.path.join(pastaArquivos, 'XML- P. Canceladas')
+
+ for pasta in [pasta_xml_prestados, pasta_xml_cancelados]:
+  if not os.path.exists(pasta):
+   os.makedirs(pasta)
+   print(f"Pasta criada: {pasta}")
+
+ try:
+  xml_prestadas = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/notaeletronica'
+  driver.get(xml_prestadas)
+  sleep(2)
+
+  # EMITIDAS
+  try:
+   processar_notas("EMITIDA", pasta_xml_prestados, "NOTAS - Emitidas.pdf")
+  except Exception as e:
+   print(f"Falha ao processar EMITIDA: {e}")
+
+  # CANCELADAS
+  try:
+   driver.refresh()
+   sleep(3)
+   processar_notas("CANCELADA", pasta_xml_cancelados, "NOTAS - P. Canceladas.pdf")
+  except Exception as e:
+   print(f"Falha ao processar CANCELADA: {e}")
+
+ except Exception as e:
+  print(f"Erro geral na execução: {e}")
+  capturar_screenshot_erro()
+
+  includeLogData(nome_thread, f'NFSE - {name_company}',
+                 f'Erro na execução: {str(e)}', f'{cnpj_cpf}',
+                 'PRESTADOS', 'info-gradient', 'ERRO', 'danger-gradient')

@@ -17,13 +17,17 @@ class Empresas(db.Model):
     chave_acesso = db.Column(db.String(64))
     login_contabilista = db.Column(db.String(64))
     senha_contabilista = db.Column(db.String(64))
-    nome = db.Column(db.String(64), nullable=False)
+    nome = db.Column(db.String(255), nullable=False)
     base64logo = db.Column(db.LargeBinary(), nullable=False)
     licensed_until = db.Column(db.DateTime())
     autorizado_schedule = db.Column(db.Integer, default=0)
     receiver_ip = db.Column(db.String(64))
     receiver_ip_secondary = db.Column(db.String(64))
     receiver_port = db.Column(db.Integer)
+    login_prefeitura = db.Column(db.String(64))
+    senha_prefeitura = db.Column(db.String(64))
+    cert_path = db.Column(db.String(500))
+    cert_password = db.Column(db.String(255))
 
     def __init__(self, **kwargs):
         for property, value in kwargs.items():
@@ -42,7 +46,7 @@ class Users(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True)
     realname = db.Column(db.String(64))
-    password = db.Column(db.LargeBinary)  # LARGEBINARY PARA ENCRYPTED
+    password = db.Column(db.String(64))  # LARGEBINARY PARA ENCRYPTED
     id_empresa = db.Column(db.String(64), db.ForeignKey('Empresas.id'), unique=True)
     setor = db.Column(db.String(64))
     admin = db.Column(db.Integer)
