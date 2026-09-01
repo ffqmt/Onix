@@ -1366,27 +1366,29 @@ def _preparar_pagina_certificado_pva(driver, nome_thread=None, espera_inicial=6.
 
 def exec_LOGIN(driver, nome_thread, login_prefeitura, senha_prefeitura):
     """Confere se a sessão do perfil persistente (PERFIL_CHROME_PERSISTENTE)
-    ainda está logada -- NÃO tenta logar sozinha. O portal exige
-    certificado digital (usuário/senha foi testado ao vivo e recusado:
-    "Usuário e/ou Senha inválidos" mesmo com credencial certa) via um
-    diálogo controlado pela extensão "Fiorilli Web Extension", que detecta
-    clique de script e recusa -- automatizar esse clique não é algo que
-    fazemos aqui (mesma categoria de "instalar/autorizar coisa no sistema"
-    que fica fora do que o bot executa sozinho).
+    ainda está logada. Se não estiver, tenta logar por usuário/senha usando
+    PVA_LOGIN/PVA_SENHA (variáveis de ambiente, .env) -- confirmado ao vivo
+    em 01/09/2026 pelo usuário que esse login (contador multi-empresa,
+    diferente do login_prefeitura/senha_prefeitura por cliente que sempre
+    falhou antes) funciona sem certificado.
 
-    Login real é manual: rode
+    Se PVA_LOGIN/PVA_SENHA não estiverem configuradas, ou o login por
+    senha falhar, cai de volta pro fluxo manual: rode
     `python -m OnixWeb.rpautomation.prefeituras.MT_1 --login-manual` numa
     janela visível, clique o certificado você mesmo, a sessão fica salva
     no perfil persistente e essa função passa a devolver True até a sessão
-    expirar de novo.
+    expirar de novo. Ver docstring de PERFIL_CHROME_PERSISTENTE acima
+    sobre por que o clique no diálogo de certificado (dentro da página,
+    controlado pela extensão "Fiorilli Web Extension") não é automatizado.
 
     login_prefeitura/senha_prefeitura ficam nos parâmetros só por
-    compatibilidade com as chamadas existentes (MainExecution_*) -- não
-    são mais usados.
+    compatibilidade com as chamadas existentes (MainExecution_*) -- essa
+    função usa PVA_LOGIN/PVA_SENHA do ambiente, não esses parâmetros
+    (que são por cliente e nunca funcionaram nos testes anteriores).
     """
     includeLogData(nome_thread,
                    f'LOGIN - CONTABILISTA',
-                   f'Verificando sessão do certificado digital...',
+                   f'Verificando sessão da Primavera do Leste...',
                    f'BOT',
                    'PREFEITURA DE PRIMAVERA DO LESTE',
                    'warning-gradient',
@@ -1406,6 +1408,37 @@ def exec_LOGIN(driver, nome_thread, login_prefeitura, senha_prefeitura):
     except Exception as e:
         print(f"Erro ao verificar sessão: {e}")
         logado = False
+
+    if not logado:
+        pva_login = os.environ.get("PVA_LOGIN")
+        pva_senha = os.environ.get("PVA_SENHA")
+        if pva_login and pva_senha:
+            print("Sessão inválida -- tentando login por usuário/senha (PVA_LOGIN)...")
+            try:
+                campo_user = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, '[id$=":username"]'))
+                )
+                campo_user.clear()
+                campo_user.send_keys(pva_login)
+
+                campo_senha = driver.find_element(By.CSS_SELECTOR, '[id$=":password"]')
+                campo_senha.clear()
+                campo_senha.send_keys(pva_senha)
+
+                botao_entrar = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"], input[type="submit"]')
+                botao_entrar.click()
+
+                WebDriverWait(driver, 15).until(lambda d: "/paginas/login" not in d.current_url)
+                logado = "/paginas/login" not in driver.current_url
+                if logado:
+                    print("Login por usuário/senha funcionou.")
+                else:
+                    print("Login por usuário/senha não redirecionou -- credencial recusada ou tela mudou.")
+            except Exception as e:
+                print(f"Erro tentando login por usuário/senha: {e}")
+                logado = False
+        else:
+            print("PVA_LOGIN/PVA_SENHA não configuradas no .env -- pulando tentativa por senha.")
 
     if logado:
         includeLogData(nome_thread,

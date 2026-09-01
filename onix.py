@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from flask_migrate import Migrate
 from flask_minify import Minify
 from sys import exit
