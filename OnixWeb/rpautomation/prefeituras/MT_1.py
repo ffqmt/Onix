@@ -2511,18 +2511,184 @@ def _nao_migrado(nome_thread, name_company, cnpj_cpf, tipo_log, url_conhecida, o
                    'warning-gradient')
 
 
-def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
-    _nao_migrado(
-        nome_thread, name_company, cnpj_cpf, 'GUIA ISSQN',
-        url_conhecida='https://iss.primaveradoleste.mt.gov.br/issweb/paginas/admin/guia/emitir',
-        o_que_falta=(
-            "o dropdown 'Movimento' (Tipo\u2192Ano\u2192M\u00eas\u2192Movimento) \u00e9 "
-            "populado via AJAX em cascata e n\u00e3o populou de forma confi\u00e1vel na "
-            "inspe\u00e7\u00e3o ao vivo, mesmo com cliques reais -- ver "
-            "/paginas/admin/guia/consultar (guias j\u00e1 emitidas, 2\u00aa via) como "
-            "alternativa mais simples a explorar antes de tentar 'emitir' de novo"
-        ),
+URL_GUIA_EMITIR_PVA = "https://iss.primaveradoleste.mt.gov.br/issweb/paginas/admin/guia/emitir"
+_MESES_GUIA_ISSQN = [
+    "JANEIRO", "FEVEREIRO", "MARCO", "ABRIL", "MAIO", "JUNHO",
+    "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO",
+]
+
+
+def _clicar_js_guia(driver, el):
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
+    driver.execute_script("arguments[0].click();", el)
+
+
+def _selecionar_dropdown_guia(driver, prefixo_id, texto_opcao):
+    """Abre um selectOneMenu do PrimeFaces (clica no _label) e clica na
+    op\u00e7\u00e3o cujo texto bate com texto_opcao. Usado pelos 3 primeiros campos
+    (Tipo/Ano/M\u00eas) de Emitir Guia -- ids reais confirmados ao vivo em
+    01/09/2026 (formEmitirGuia:somTipo/somAno/somMes)."""
+    label = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.ID, f"{prefixo_id}_label"))
     )
+    _clicar_js_guia(driver, label)
+    sleep(1.2)
+    sufixo_items = prefixo_id.split(":")[-1] + "_items"
+    itens = driver.find_elements(By.CSS_SELECTOR, f"[id$=':{sufixo_items}'] li")
+    for item in itens:
+        if item.text.strip() == texto_opcao:
+            _clicar_js_guia(driver, item)
+            sleep(1.5)
+            return True
+    return False
+
+
+def _selecionar_movimento_guia(driver):
+    """O dropdown 'Movimento' (formEmitirGuia:somMovimento) s\u00f3 popula via
+    AJAX depois de CLICADO -- diferente de Tipo/Ano/M\u00eas, n\u00e3o basta os
+    campos anteriores estarem preenchidos. Essa foi a causa real do
+    "n\u00e3o populou de forma confi\u00e1vel" registrado em 31/08 (ningu\u00e9m tinha
+    de fato clicado no campo, s\u00f3 olhado o <select> escondido, que fica
+    vazio at\u00e9 esse clique). Confirmado ao vivo em 01/09/2026 -- populou
+    com um movimento real ("8/2026 - Normal") assim que clicado.
+    Retorna o texto do movimento selecionado, ou None se n\u00e3o houver
+    nenhum movimento aberto pra esse Tipo/Ano/M\u00eas (caso normal -- sem
+    nota pendente de fechamento no per\u00edodo)."""
+    label = driver.find_element(By.ID, "formEmitirGuia:somMovimento_label")
+    _clicar_js_guia(driver, label)
+    sleep(1.5)
+    itens = driver.find_elements(By.CSS_SELECTOR, "[id$=':somMovimento_items'] li")
+    texto = next(
+        (i.text.strip() for i in itens if i.text.strip() and i.text.strip().lower() != "selecione"),
+        None,
+    )
+    if not texto:
+        return None
+    # Re-localiza por XPath na hora do clique -- a lista pode ter sido
+    # re-renderizada pelo AJAX entre a leitura e o clique (StaleElement
+    # confirmado ao vivo quando reusada a refer\u00eancia antiga).
+    item = driver.find_element(
+        By.XPATH,
+        f"//li[contains(@class,'ui-selectonemenu-item') and normalize-space(text())='{texto}']",
+    )
+    _clicar_js_guia(driver, item)
+    sleep(2)
+    return texto
+
+
+def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    """Emite a Guia de ISS (portal novo, ISSWeb/Fiorilli). Fluxo real,
+    confirmado ao vivo em 01/09/2026 contra a Cl\u00ednica Amorim LTDA
+    (44649543000100, compet\u00eancia 08/2026): selecionar contribuinte ->
+    Tipo (Prestador e depois Tomador) -> Exerc\u00edcio -> M\u00eas -> Movimento
+    (s\u00f3 popula depois de clicado, ver _selecionar_movimento_guia) ->
+    Pesquisar -> se achou notas, clica "Gerar Guia Refer\u00eancia" (gera a
+    guia pra TODAS as notas do movimento de uma vez, mesmo padr\u00e3o de
+    _buscar_e_exportar_notas: exportar tudo, n\u00e3o nota por nota).
+
+    Tenta os dois Tipos (Prestador/Tomador) -- uma empresa pode ter
+    movimento aberto em s\u00f3 um deles, ou nos dois."""
+    if not _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
+        return
+
+    mes_nome = _MESES_GUIA_ISSQN[int(execMes) - 1]
+    algum_sucesso = False
+
+    for tipo in ("Prestador", "Tomador"):
+        try:
+            driver.get(URL_GUIA_EMITIR_PVA)
+            sleep(2.5)
+
+            if not _selecionar_dropdown_guia(driver, "formEmitirGuia:somTipo", tipo):
+                continue
+            _selecionar_dropdown_guia(driver, "formEmitirGuia:somAno", f"{execAno}")
+            _selecionar_dropdown_guia(driver, "formEmitirGuia:somMes", mes_nome)
+            sleep(1)
+
+            movimento = _selecionar_movimento_guia(driver)
+            if not movimento:
+                print(f"GUIA ISSQN ({tipo}) - {name_company}: sem movimento aberto em {mes_nome}/{execAno}.")
+                continue
+
+            botao_pesquisar = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[id$=":pgBotaoPesquisar"]'))
+            )
+            _clicar_js_guia(driver, botao_pesquisar)
+            sleep(2.5)
+
+            if "Nenhum resultado encontrado" in driver.find_element(By.TAG_NAME, "body").text:
+                print(f"GUIA ISSQN ({tipo}) - {name_company}: sem notas no movimento {movimento}.")
+                continue
+
+            driver.execute_cdp_cmd(
+                'Page.setDownloadBehavior',
+                {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'},
+            )
+            botao_gerar = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(., 'Gerar Guia Refer\u00eancia')]"))
+            )
+            _clicar_js_guia(driver, botao_gerar)
+            sleep(1.5)
+
+            # "Gerar Guia Referência" abre um modal de confirmação da
+            # própria página (não é window.alert -- Alert(driver) não
+            # pega) perguntando "Deseja realmente gerar uma guia de
+            # pagamento com todas as notas do exercício e mês
+            # informados?" -- confirmado ao vivo em 01/09/2026. Sem
+            # confirmar aqui, nada é gerado (é exatamente o que aconteceu
+            # na primeira tentativa: WebDriverWait apontava sucesso no
+            # clique, mas o download nunca começava).
+            try:
+                botao_sim = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "button.ui-confirmdialog-yes"))
+                )
+                _clicar_js_guia(driver, botao_sim)
+            except TimeoutException:
+                pass  # nem sempre pede confirmação (ex: já gerada antes)
+            sleep(3)
+
+            # Confirmar gera a guia (número/referência/valor/vencimento
+            # reais) e leva pra uma tela de detalhe -- confirmado ao vivo
+            # em 01/09/2026 (guia real nº 3483, ref. 8/2026, R$3.183,35).
+            # O PDF só baixa depois de um clique a mais em "Imprimir
+            # guia" nessa tela de detalhe.
+            try:
+                botao_imprimir = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Imprimir guia')]"))
+                )
+                _clicar_js_guia(driver, botao_imprimir)
+                sleep(2)
+            except TimeoutException:
+                print(f"GUIA ISSQN ({tipo}) - {name_company}: botão 'Imprimir guia' não apareceu -- guia pode já ter sido gerada antes sem tela de detalhe.")
+
+            nome_arquivo = f"GUIA ISSQN - {tipo}.pdf"
+            caminho = esperar_e_renomear_arquivo(pastaArquivos, nome_arquivo, intervalo=6)
+            sucesso = bool(caminho and os.path.exists(caminho))
+            algum_sucesso = algum_sucesso or sucesso
+            includeLogData(
+                nome_thread,
+                f'GUIA ISSQN - {name_company}',
+                f'Guia ({tipo}, movimento {movimento}) gerada com sucesso.' if sucesso
+                else f'Guia ({tipo}, movimento {movimento}) pesquisada mas download n\u00e3o confirmado.',
+                cnpj_cpf, 'GUIA ISSQN', 'info-gradient',
+                'SUCESSO' if sucesso else 'ATEN\u00c7\u00c3O',
+                'success-gradient' if sucesso else 'warning-gradient',
+            )
+        except Exception as e:
+            print(f"Erro GUIA ISSQN ({tipo}) - {name_company}: {e}")
+            _salvar_diagnostico(driver, f"guia_issqn_erro_{tipo}_{cnpj_cpf}")
+            includeLogData(
+                nome_thread, f'GUIA ISSQN - {name_company}', f'Erro: {e}',
+                cnpj_cpf, 'GUIA ISSQN', 'info-gradient', 'ERRO', 'danger-gradient',
+            )
+
+    if not algum_sucesso:
+        includeLogData(
+            nome_thread, f'GUIA ISSQN - {name_company}',
+            f'Nenhuma guia pendente encontrada (Prestador ou Tomador) em {mes_nome}/{execAno}.',
+            cnpj_cpf, 'GUIA ISSQN', 'info-gradient', 'ATEN\u00c7\u00c3O', 'warning-gradient',
+        )
 
 
 def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
