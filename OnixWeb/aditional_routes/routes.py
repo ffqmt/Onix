@@ -582,12 +582,29 @@ def autom_rpas_prefeituras(estado, id_cidade):
         tipo = request.form.get('tipo')
         listaPessoas = list(request.form.get('selecao').split(','))
         if tipo == 'padrao':  # PADRAO
+            # MainExecution_Fisica_Padrao/Juridica_Padrao em MT_1.py (prefeitura)
+            # esperam 5 args (listaPessoas, listaParametros, EmpresaExec, Ano, Mes)
+            # -- listaParametros nunca era montado/passado aqui, dava
+            # TypeError: missing 1 required positional argument 'Mes' assim que a
+            # thread rodava (bug pre-existente, achado ao verificar a correção do
+            # portal novo de Primavera do Leste em 01/09/2026). "Padrao" = todos os
+            # tipos de documento, então tudo True.
+            listaParametrosPadrao = {
+                'enc_taken': True,
+                'enc_provided': True,
+                'issqn': True,
+                'taken': True,
+                'provided': True,
+                'nfe_taken': True,
+                'nfe_provided': True,
+            }
             if tipo_pessoa == 'Fisica':
                 callExec = getattr(globals()[estado + '_' + id_cidade], 'MainExecution_Fisica_Padrao', None)
                 if callExec is not None and callable(callExec):
                     t = threading.Thread(target=callExec,
                                          name=f"{codigo_unico}",
                                          args=(listaPessoas,
+                                               listaParametrosPadrao,
                                                current_user.id_empresa,
                                                competenciaAno,
                                                competenciaMes))
@@ -604,6 +621,7 @@ def autom_rpas_prefeituras(estado, id_cidade):
                     t = threading.Thread(target=callExec,
                                          name=f"{codigo_unico}",
                                          args=(listaPessoas,
+                                               listaParametrosPadrao,
                                                current_user.id_empresa,
                                                competenciaAno,
                                                competenciaMes))

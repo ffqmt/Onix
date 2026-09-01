@@ -1377,15 +1377,21 @@ def _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
         botao_pesquisar = driver.find_element(By.CSS_SELECTOR, 'button[id$=":btnDefault"]')
         botao_pesquisar.click()
 
+        # O id "listaContribuintes" fica numa <div> (o wrapper PrimeFaces
+        # do datatable), não numa <table> -- confirmado via diagnóstico
+        # (_diagnostico_pva/) em 01/09/2026 depois do seletor "table[...]"
+        # nunca casar com nada e estourar timeout. Sem prefixo de tag,
+        # casa com qualquer elemento.
         botao_selecionar = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, 'table[id$=":listaContribuintes"] tbody tr:first-child button'))
+                (By.CSS_SELECTOR, '[id$=":listaContribuintes"] tbody tr:first-child button'))
         )
         botao_selecionar.click()
         sleep(1.5)  # AJAX de troca de contexto do contribuinte
         return True
     except TimeoutException:
         print(f"Contribuinte não encontrado para CNPJ/CPF {cnpj_cpf}")
+        _salvar_diagnostico(driver, f"selecionar_contribuinte_{cnpj_cpf}")
         includeLogData(nome_thread,
                        'SELECIONAR CONTRIBUINTE',
                        f'Nenhum contribuinte encontrado para {cnpj_cpf} no portal da prefeitura.',
@@ -1397,7 +1403,28 @@ def _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
         return False
     except Exception as e:
         print(f"Erro ao selecionar contribuinte {cnpj_cpf}: {e}")
+        _salvar_diagnostico(driver, f"selecionar_contribuinte_erro_{cnpj_cpf}")
         return False
+
+
+def _salvar_diagnostico(driver, prefixo):
+    """Screenshot + HTML da página no momento da falha -- pra diagnosticar
+    sem precisar de acesso ao vivo de novo (seletor mudou? elemento tem
+    outro id? nunca apareceu resultado?). Salva em
+    OnixWeb/rpautomation/dependencias/_diagnostico_pva/, nunca derruba a
+    execução por conta própria (best-effort)."""
+    try:
+        pasta = os.path.join(root_path, r"OnixWeb\rpautomation\dependencias\_diagnostico_pva")
+        os.makedirs(pasta, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        driver.save_screenshot(os.path.join(pasta, f"{prefixo}_{ts}.png"))
+        with open(os.path.join(pasta, f"{prefixo}_{ts}.html"), "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        with open(os.path.join(pasta, f"{prefixo}_{ts}_url.txt"), "w", encoding="utf-8") as f:
+            f.write(driver.current_url)
+        print(f"Diagnóstico salvo em {pasta} (prefixo {prefixo}_{ts})")
+    except Exception as e:
+        print(f"Não consegui salvar diagnóstico: {e}")
 
 
 def _buscar_e_exportar_notas(driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos,
@@ -1454,7 +1481,13 @@ def _buscar_e_exportar_notas(driver, nome_thread, name_company, cnpj_cpf, execMe
                     botao_pdf = driver.find_element(By.CSS_SELECTOR, 'button[id$=":cbImprimirButton"]')
                 except NoSuchElementException:
                     botao_pdf = driver.find_element(By.CSS_SELECTOR, 'button[id$=":cbImprimirList"]')
-                botao_pdf.click()
+                # Clique nativo esbarrava numa "statusBar" fixa cobrindo o
+                # botão perto do rodapé (confirmado ao vivo, "element click
+                # intercepted") -- clique via JS ignora sobreposição visual,
+                # mesmo truque que MT_1.py já usava em outros lugares (ex:
+                # radio_button de GUIAISSQN) antes desta correção.
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao_pdf)
+                driver.execute_script("arguments[0].click();", botao_pdf)
                 caminho = esperar_e_renomear_arquivo(pastaArquivos, nome_arquivo_pdf, intervalo=6)
                 if caminho and os.path.exists(caminho):
                     arquivos_baixados.append(caminho)
@@ -1466,18 +1499,16 @@ def _buscar_e_exportar_notas(driver, nome_thread, name_company, cnpj_cpf, execMe
                 print(f"Falha ao baixar/renomear PDF ({tipo_log}): {e}")
 
         if nome_arquivo_xml:
-            # NAO confirmado ao vivo: 'Gerar XML' pode baixar um .xml
-            # direto ou um .zip com varios XMLs dentro (o botao 'Gerar
-            # ZIP' separado, visto na inspecao mas nao usado aqui, sugere
-            # que 'Gerar XML' e um .xml unico -- nome_arquivo_xml decide
-            # a extensao esperada por quem chama esta funcao; ajuste se
-            # a extensao real for outra).
+            # Confirmado ao vivo em 01/09/2026: 'Gerar XML' baixa um .xml
+            # unico (nome real do portal: LoteNFSe_DD_MM_AAAA.xml), nao um
+            # .zip -- o botao 'Gerar ZIP' e outro, separado, nao usado aqui.
             try:
                 try:
                     botao_xml = driver.find_element(By.CSS_SELECTOR, 'button[id$=":cbGerarXml"]')
                 except NoSuchElementException:
                     botao_xml = driver.find_element(By.CSS_SELECTOR, 'button[id$=":cbGerarXmlList"]')
-                botao_xml.click()
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao_xml)
+                driver.execute_script("arguments[0].click();", botao_xml)
                 caminho = esperar_e_renomear_arquivo(pastaArquivos, nome_arquivo_xml, intervalo=10)
                 if caminho and os.path.exists(caminho):
                     arquivos_baixados.append(caminho)
@@ -2824,6 +2855,15 @@ def exec_ENC_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execM
 if __name__ == "__main__":
     import sys
 
+    # print() com emoji (varios ja existentes no arquivo) quebra em
+    # console Windows com codepage cp1252 -- forca UTF-8 no stdout/stderr
+    # so quando rodado standalone (nao afeta o comportamento sob Flask).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
     if "--login-manual" in sys.argv:
         print("Abrindo Chrome (janela visível) no perfil persistente...")
         print(f"Perfil: {PERFIL_CHROME_PERSISTENTE}")
@@ -2841,7 +2881,68 @@ if __name__ == "__main__":
                 print("As próximas execuções automáticas (exec_LOGIN) vão reaproveitar essa sessão até ela expirar.")
         finally:
             driver.quit()
+
+    elif "--verificar" in sys.argv:
+        # Igual --login-manual, mas SEM esperar Enter no terminal (poll no
+        # lugar) -- pra rodar de um jeito que não depende de alguém digitar
+        # no mesmo terminal que abriu o navegador (ex: Claude rodando isto
+        # via ferramenta de shell, humano só clica o certificado na janela
+        # que aparece). Depois de detectar login, roda o fluxo real
+        # (selecionar contribuinte + baixar notas prestadas) contra um
+        # cliente com dados conhecidos, pra provar (ou não) que o resto do
+        # pipeline funciona de ponta a ponta, não só o login.
+        import tempfile
+
+        print("Abrindo Chrome (janela visível) no perfil persistente...")
+        print(f"Perfil: {PERFIL_CHROME_PERSISTENTE}")
+        driver = IniciarDriver(headless=False)
+        try:
+            driver.get(URL_LOGIN_PVA)
+            print(f"\nNavegador aberto em {URL_LOGIN_PVA}.")
+            print("Clique em 'Entrar com certificado digital' e escolha o certificado -- clique real, de verdade.")
+            print("Esperando você logar (sem limite de tempo pra digitar nada aqui, só clicar lá na janela)...")
+
+            logado = False
+            for _ in range(150):  # ~10 minutos (150 x 4s)
+                sleep(4)
+                if "/paginas/login" not in driver.current_url:
+                    logado = True
+                    break
+                print(".", end="", flush=True)
+
+            print()
+            if not logado:
+                print("\nTempo esgotado sem detectar login. Rode de novo quando tiver o certificado à mão.")
+            else:
+                print(f"\nLogin detectado! URL atual: {driver.current_url}")
+                print("\nTestando o fluxo completo: selecionar contribuinte + baixar notas prestadas...")
+                print("(cliente de teste: INTEGRA CONSULTORIA AGRONOMICA, CNPJ 14497919000147, competência 10/2024)")
+
+                pasta_teste = os.path.join(tempfile.gettempdir(), "onix_teste_verificar_pva")
+                os.makedirs(pasta_teste, exist_ok=True)
+
+                if not _selecionar_contribuinte(driver, "teste-verificar", "14497919000147"):
+                    print("\nFALHOU: não conseguiu selecionar o contribuinte de teste.")
+                else:
+                    sucesso = _buscar_e_exportar_notas(
+                        driver, "teste-verificar", "INTEGRA CONSULTORIA AGRONOMICA (teste)",
+                        "14497919000147", "10", "2024", pasta_teste,
+                        url_lista=URL_NOTAS_PRESTADAS_PVA,
+                        nome_arquivo_pdf="NOTAS - Prestados.pdf",
+                        nome_arquivo_xml="NFSe - Prestados.xml",
+                        tipo_log="TESTE-PRESTADOS",
+                    )
+                    arquivos = os.listdir(pasta_teste)
+                    print(f"\nResultado: {'SUCESSO' if sucesso else 'FALHOU'}")
+                    print(f"Pasta de teste: {pasta_teste}")
+                    print(f"Arquivos encontrados: {arquivos}")
+        finally:
+            driver.quit()
+
     else:
-        print("Uso: python -m OnixWeb.rpautomation.prefeituras.MT_1 --login-manual")
-        print("Abre o navegador pra você logar manualmente com certificado digital no perfil persistente")
-        print("que as execuções automáticas (agendamentos) vão reaproveitar depois.")
+        print("Uso:")
+        print("  python -m OnixWeb.rpautomation.prefeituras.MT_1 --login-manual")
+        print("      Abre o navegador, você loga com certificado, aperta Enter aqui pra confirmar.")
+        print("  python -m OnixWeb.rpautomation.prefeituras.MT_1 --verificar")
+        print("      Igual, mas sem precisar apertar Enter -- detecta o login sozinho e já testa")
+        print("      o fluxo completo (selecionar contribuinte + baixar notas) contra um cliente real.")

@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Perfil persistente do Chrome pra login por certificado (sessao/cookies
+# reais, cache do site) e capturas de diagnostico (podem ter dados de
+# clientes de verdade) -- nunca versionar.
+OnixWeb/rpautomation/dependencias/chrome_profile_pva_persistente/
+OnixWeb/rpautomation/dependencias/_diagnostico_pva/
+
 # C extensions
 *.so
 
