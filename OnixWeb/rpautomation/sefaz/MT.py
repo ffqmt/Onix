@@ -2096,7 +2096,36 @@ def auto_press_enter_on_chrome_watcher(nome_thread=None):
     print(f"[{nome_thread or 'BOT'}] Watcher de Certificado Digital finalizado.")
 
 
-def selecionar_certificado_via_uia(nome_thread=None, certificate_display_name=None, timeout_seconds=50.0):
+def _achar_pid_chrome_da_sessao(driver):
+    """Acha o PID do processo chrome.exe (não chromedriver.exe) que essa
+    sessão específica do Selenium controla -- necessário pra rodar
+    múltiplas instâncias de exec_LOGIN_CERTIFICADO em paralelo sem uma
+    roubar o diálogo de certificado da outra (o Chrome é filho direto do
+    processo chromedriver, então dá pra achar por parentesco). Retorna
+    None se não conseguir determinar -- nesse caso o watcher cai de volta
+    pro comportamento antigo (olha qualquer janela do Chrome no PC, só
+    seguro com uma execução por vez)."""
+    try:
+        chromedriver_pid = driver.service.process.pid
+    except Exception:
+        return None
+    try:
+        out = subprocess.run(
+            ["wmic", "process", "where", f"ParentProcessId={chromedriver_pid}", "get", "ProcessId,Name"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout
+        for linha in out.splitlines():
+            linha = linha.strip()
+            if linha.lower().startswith("chrome.exe"):
+                partes = linha.split()
+                if len(partes) >= 2 and partes[-1].isdigit():
+                    return int(partes[-1])
+    except Exception:
+        pass
+    return None
+
+
+def selecionar_certificado_via_uia(nome_thread=None, certificate_display_name=None, timeout_seconds=50.0, driver=None):
     """Usa UI Automation (pywinauto) pra achar o diálogo nativo do Windows
     "Selecione um certificado" (aberto pelo Chrome fora do DOM/processo do
     Chromium no login por certificado da SEFAZ) e clicar especificamente na
@@ -2108,6 +2137,14 @@ def selecionar_certificado_via_uia(nome_thread=None, certificate_display_name=No
     Porte de docs/patchright-certificate-handling-validated-2026-08-24.py
     (Zaya-bot), estratégia "uia_click", validada ao vivo contra o SEFAZ
     real em 24/08/2026 (máquina com 3 certificados na loja).
+
+    `driver`, se informado, restringe a busca só à janela do Chrome que
+    essa sessão específica controla (via PID) -- necessário pra rodar
+    mais de um lote do SEFAZ em paralelo sem uma sessão clicar o
+    certificado que era pra outra, o que deixaria a outra travada pra
+    sempre esperando um diálogo que já sumiu. Sem `driver`, cai no
+    comportamento antigo (qualquer janela do Chrome), só seguro com uma
+    execução por vez.
     """
     global _stop_watcher
     import time
@@ -2123,6 +2160,12 @@ def selecionar_certificado_via_uia(nome_thread=None, certificate_display_name=No
             "certificado via UI Automation indisponível (pip install pywinauto)."
         )
         return
+
+    pid_chrome_alvo = _achar_pid_chrome_da_sessao(driver) if driver is not None else None
+    if pid_chrome_alvo:
+        print(f"[{nome_thread or 'BOT'}] Watcher restrito ao Chrome PID {pid_chrome_alvo} (seguro em paralelo).")
+    else:
+        print(f"[{nome_thread or 'BOT'}] Aviso: não isolei o PID do Chrome -- watcher olha qualquer janela (só rode uma execução de certificado por vez).")
 
     # Espera inicial antes de sair procurando o diálogo -- igual
     # auto_press_enter_on_chrome_watcher (sleep(4.0) fixo) fazia, mas
@@ -2143,7 +2186,17 @@ def selecionar_certificado_via_uia(nome_thread=None, certificate_display_name=No
             # só o objeto de `desktop.window(title=...)` (WindowSpecification,
             # com resolução preguiçosa) tem esse método. Por isso enumera só os
             # títulos aqui e resolve cada um de novo via `desktop.window(...)`.
-            titles = {w.window_text() for w in desktop.windows(class_name='Chrome_WidgetWin_1')}
+            janelas_chrome = desktop.windows(class_name='Chrome_WidgetWin_1')
+            if pid_chrome_alvo:
+                janelas_filtradas = []
+                for w in janelas_chrome:
+                    try:
+                        if w.process_id() == pid_chrome_alvo:
+                            janelas_filtradas.append(w)
+                    except Exception:
+                        continue
+                janelas_chrome = janelas_filtradas
+            titles = {w.window_text() for w in janelas_chrome}
             for title in titles:
                 if not title:
                     continue
@@ -2198,6 +2251,7 @@ def exec_LOGIN_CERTIFICADO(driver, nome_thread):
     watcher_thread = threading.Thread(
         target=selecionar_certificado_via_uia,
         args=(nome_thread, CERTIFICADO_DIGITAL_NOME),
+        kwargs={"driver": driver},
         daemon=True,
     )
     watcher_thread.start()
