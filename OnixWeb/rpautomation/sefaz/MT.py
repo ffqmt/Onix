@@ -57,6 +57,11 @@ except Exception:
 root_path = os.path.abspath('')
 USAR_LOGIN_MANUAL_SEFAZ = False
 USAR_CERTIFICADO_SEFAZ = True
+# Trecho de texto que identifica a linha certa no diálogo nativo "Selecione
+# um certificado" do Windows -- usado por selecionar_certificado_via_uia().
+# Sempre o mesmo certificado (Contaudi), independente da empresa cujo
+# documento está sendo buscado.
+CERTIFICADO_DIGITAL_NOME = "CONTAUDI"
 
 # --- CONFIGURAÇÕES DE ESTABILIZAÇÃO SEFAZ ---
 AUTO_FALLBACK_LOGIN_MANUAL = True
@@ -1766,6 +1771,36 @@ def click_element_cdp(driver, element):
     sleep(0.1)
 
 
+def _aguardar_rect_estavel(driver, element, tentativas=10, intervalo=0.15):
+    """Espera a posição/tamanho do elemento parar de mudar entre leituras
+    consecutivas antes de clicar. Painéis do PrimeFaces (ex: o dropdown
+    "Tipo de Usuário") continuam existindo no DOM e passando no
+    element_to_be_clickable do Selenium enquanto ainda estão
+    animando/sendo posicionados pelo JS -- click_element_cdp calcula a
+    coordenada uma única vez (getBoundingClientRect no instante do
+    clique), então clicar durante essa janela erra o alvo. Confirmado ao
+    vivo em 01/09/2026: o clique na opção "Contabilista" falhou de forma
+    idêntica em 4/4 tentativas (sem essa espera), sempre com erro sem
+    mensagem útil do chromedriver. Retorna o último rect lido mesmo se não
+    estabilizou dentro das tentativas -- ainda assim é a leitura mais
+    recente disponível."""
+    anterior = None
+    rect = None
+    for _ in range(tentativas):
+        rect = driver.execute_script(
+            """
+            var r = arguments[0].getBoundingClientRect();
+            return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height};
+            """,
+            element,
+        )
+        if anterior is not None and rect == anterior and rect['w'] > 0 and rect['h'] > 0:
+            return rect
+        anterior = rect
+        sleep(intervalo)
+    return rect
+
+
 def obter_versao_chrome() -> str:
  # Remove chamadas ao subprocess para evitar UnicodeDecodeError no Windows
  return "Ignorado para evitar erros de terminal"
@@ -1955,6 +1990,86 @@ def auto_press_enter_on_chrome_watcher(nome_thread=None):
     print(f"[{nome_thread or 'BOT'}] Watcher de Certificado Digital finalizado.")
 
 
+def selecionar_certificado_via_uia(nome_thread=None, certificate_display_name=None, timeout_seconds=50.0):
+    """Usa UI Automation (pywinauto) pra achar o diálogo nativo do Windows
+    "Selecione um certificado" (aberto pelo Chrome fora do DOM/processo do
+    Chromium no login por certificado da SEFAZ) e clicar especificamente na
+    linha (`DataItem` de um `DataGrid`) cujo texto contém
+    `certificate_display_name` -- diferente de auto_press_enter_on_chrome_watcher
+    acima, não depende de qual item o Windows destaca por padrão, então
+    escolhe o certificado certo mesmo com mais de um na loja.
+
+    Porte de docs/patchright-certificate-handling-validated-2026-08-24.py
+    (Zaya-bot), estratégia "uia_click", validada ao vivo contra o SEFAZ
+    real em 24/08/2026 (máquina com 3 certificados na loja).
+    """
+    global _stop_watcher
+    import time
+    import random
+
+    certificate_display_name = certificate_display_name or CERTIFICADO_DIGITAL_NOME
+
+    try:
+        from pywinauto import Desktop
+    except ImportError:
+        print(
+            f"[{nome_thread or 'BOT'}] pywinauto não instalado -- seleção de "
+            "certificado via UI Automation indisponível (pip install pywinauto)."
+        )
+        return
+
+    # Espera inicial antes de sair procurando o diálogo -- igual
+    # auto_press_enter_on_chrome_watcher (sleep(4.0) fixo) fazia, mas
+    # perdida no port pra uia_click. Confirmado ao vivo em 01/09/2026
+    # (observação do usuário assistindo a tela): sem essa espera, o
+    # certificado é selecionado rápido demais, antes da página/handshake
+    # TLS assentar de verdade -- suspeita real de que isso é o que dispara
+    # o "F5 JS challenge" logo depois e deixa a página final sem o
+    # formulário esperado (Tipo de Usuário nunca é encontrado).
+    time.sleep(random.uniform(3.5, 5.0))
+
+    print(f"[{nome_thread or 'BOT'}] Aguardando diálogo de certificado (UI Automation)...")
+    desktop = Desktop(backend='uia')
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline and not _stop_watcher:
+        try:
+            # `desktop.windows(...)` devolve UIAWrapper cru (sem `child_window`);
+            # só o objeto de `desktop.window(title=...)` (WindowSpecification,
+            # com resolução preguiçosa) tem esse método. Por isso enumera só os
+            # títulos aqui e resolve cada um de novo via `desktop.window(...)`.
+            titles = {w.window_text() for w in desktop.windows(class_name='Chrome_WidgetWin_1')}
+            for title in titles:
+                if not title:
+                    continue
+                try:
+                    dlg = desktop.window(title=title).child_window(
+                        title='Selecione um certificado', control_type='Window'
+                    )
+                    if not dlg.exists(timeout=0.3):
+                        continue
+                except Exception:
+                    continue
+
+                for item in dlg.descendants(control_type='DataItem'):
+                    try:
+                        text = item.window_text()
+                    except Exception:
+                        continue
+                    if certificate_display_name.lower() not in text.lower():
+                        continue
+                    item.click_input()
+                    time.sleep(0.3)
+                    ok_button = dlg.child_window(title='OK', control_type='Button')
+                    if ok_button.exists(timeout=2):
+                        ok_button.click_input()
+                        print(f"[{nome_thread or 'BOT'}] Certificado '{certificate_display_name}' selecionado via UI Automation.")
+                    return
+        except Exception as exc:
+            print(f"[{nome_thread or 'BOT'}] Erro tentando selecionar certificado via UIA: {exc}")
+        time.sleep(0.5)
+    print(f"[{nome_thread or 'BOT'}] Diálogo de certificado não apareceu em {timeout_seconds:.0f}s (ou já não era necessário).")
+
+
 def exec_LOGIN_CERTIFICADO(driver, nome_thread):
     global _stop_watcher
     _stop_watcher = False
@@ -1968,8 +2083,17 @@ def exec_LOGIN_CERTIFICADO(driver, nome_thread):
                    'ATENÇÃO',
                    'warning-gradient')
                    
-    # Inicia o watcher em segundo plano
-    watcher_thread = threading.Thread(target=auto_press_enter_on_chrome_watcher, args=(nome_thread,), daemon=True)
+    # Inicia o watcher de certificado em segundo plano. uia_click escolhe
+    # especificamente a linha do certificado CERTIFICADO_DIGITAL_NOME no
+    # diálogo nativo do Windows via UI Automation, em vez de confiar em
+    # qual item o Windows destaca por padrão (auto_press_enter_on_chrome_watcher,
+    # mantida acima, só funciona sem ambiguidade com um único certificado
+    # na loja -- nesta máquina há mais de um).
+    watcher_thread = threading.Thread(
+        target=selecionar_certificado_via_uia,
+        args=(nome_thread, CERTIFICADO_DIGITAL_NOME),
+        daemon=True,
+    )
     watcher_thread.start()
     
     url = "https://www.sefaz.mt.gov.br/acesso/pages/login-certificado/login-certificado.xhtml"
@@ -1988,20 +2112,96 @@ def exec_LOGIN_CERTIFICADO(driver, nome_thread):
             print("Erro de conexao na pagina de certificado.")
             return False
             
-        # Selecionar Tipo de Usuário "Contabilista"
-        try:
-            select_label = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, '//*[@id="j_idt34:selectTipoUsuario_label"]'))
-            )
-            click_element_cdp(driver, select_label)
-            sleep(random.uniform(0.5, 1.0))
+        # Selecionar Tipo de Usuário "Contabilista" -- com retry. Um clique
+        # aqui pode falhar logo depois de um F5 JS challenge (ver
+        # abrir_url_sefaz acima): a referência do elemento fica fora de
+        # sincronia com a página (dropdown ainda animando, DOM re-renderizado
+        # pelo JSF) -- confirmado ao vivo em 01/09/2026, o clique na opção
+        # falhou com stacktrace sem mensagem útil e deixou o dropdown aberto
+        # sem nada selecionado. Re-localiza os elementos do zero a cada
+        # tentativa em vez de reusar referência potencialmente obsoleta, e
+        # fecha o dropdown (ESC) antes de tentar de novo.
+        tipo_usuario_ok = False
+        ultimo_erro_tipo_usuario = None
+        for tentativa_tipo in range(1, 4):
+            etapa = "início"
+            try:
+                # Seletor por SUFIXO, não por prefixo fixo -- o prefixo do
+                # form JSF (era "j_idt34:") muda entre cargas da página
+                # (confirmado ao vivo 01/09/2026: a mesma página, com o
+                # form certinho na tela, não tinha esse id -- é exatamente
+                # o que já tinha sido descoberto e corrigido no Zaya-bot,
+                # ver docs/sefaz-mt-validated-2026-08-24/login.py:38-42,
+                # nunca portado de volta pro Onix).
+                etapa = "aguardar select_label clicável"
+                select_label = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "[id$=':selectTipoUsuario_label']"))
+                )
+                etapa = "clicar select_label"
+                click_element_cdp(driver, select_label)
+                sleep(random.uniform(0.5, 1.0))
 
-            select_option = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.XPATH, '//*[@id="j_idt34:selectTipoUsuario_1"]'))
-            )
-            click_element_cdp(driver, select_option)
-            sleep(random.uniform(1.0, 2.0))
-            
+                etapa = "aguardar select_option clicável"
+                select_option = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "[id$=':selectTipoUsuario_1']"))
+                )
+                etapa = "aguardar rect estável de select_option"
+                _aguardar_rect_estavel(driver, select_option)
+                etapa = "clicar select_option (CDP)"
+                try:
+                    click_element_cdp(driver, select_option)
+                except Exception:
+                    # Fallback pro clique nativo do Selenium -- se o CDP
+                    # ainda assim errar o alvo (painel do PrimeFaces
+                    # instável), o .click() do próprio elemento localizado
+                    # de novo agora (pós-espera de estabilidade) é uma
+                    # segunda chance independente do cálculo manual de
+                    # coordenadas.
+                    etapa = "clicar select_option (fallback nativo)"
+                    select_option.click()
+                sleep(random.uniform(1.0, 2.0))
+                tipo_usuario_ok = True
+                break
+            except Exception as e:
+                ultimo_erro_tipo_usuario = e
+                # Diagnóstico -- as tentativas anteriores (retry simples,
+                # depois espera de estabilidade + fallback nativo) falharam
+                # de forma idêntica, sinal de que o problema pode não ser
+                # no clique em si, e sim na página inteira (ex: ainda
+                # navegando/recarregando por causa do F5 JS challenge
+                # logo antes). etapa/tipo/url/readyState dizem onde
+                # exatamente parou e se a página estava estável.
+                try:
+                    url_atual = driver.current_url
+                except Exception:
+                    url_atual = "?"
+                try:
+                    ready_state = driver.execute_script("return document.readyState")
+                except Exception:
+                    ready_state = "?"
+                print(
+                    f"Tentativa {tentativa_tipo}/3 de selecionar Tipo de Usuário falhou na etapa "
+                    f"'{etapa}': {type(e).__name__}: {e!r} | url={url_atual} | readyState={ready_state}"
+                )
+                try:
+                    debug_dir = os.path.join(root_path, "debug_sefaz")
+                    os.makedirs(debug_dir, exist_ok=True)
+                    sufixo = f"tipo_usuario_falha_tentativa{tentativa_tipo}"
+                    driver.save_screenshot(os.path.join(debug_dir, f"{sufixo}.png"))
+                    with open(os.path.join(debug_dir, f"{sufixo}.html"), "w", encoding="utf-8") as f:
+                        f.write(driver.page_source)
+                except Exception as e_diag:
+                    print(f"  (falha ao salvar diagnóstico: {e_diag})")
+                try:
+                    ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+                except Exception:
+                    pass
+                sleep(1.5)
+
+        try:
+            if not tipo_usuario_ok:
+                raise ultimo_erro_tipo_usuario or Exception("Não foi possível selecionar o Tipo de Usuário.")
+
             # Clicar no botão Efetuar Login (que é um input do tipo submit)
             btn_entrar = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//input[@type='submit' and contains(@class, 'btnPadrao')]"))
@@ -2009,7 +2209,7 @@ def exec_LOGIN_CERTIFICADO(driver, nome_thread):
             click_element_cdp(driver, btn_entrar)
             print("Botao de login via certificado clicado. Aguardando redirecionamento...")
             sleep(random.uniform(3.0, 5.0))
-            
+
         except Exception as e:
             print(f"Erro ao interagir com campos de login certificado: {e}")
             
@@ -3389,21 +3589,17 @@ def exec_NFCE(driver, nome_thread, name_company, cnpj_cpf, ie, execMes, execAno,
 
   mes = int(execMes)
   ano = int(execAno)
-  inicio_mes = datetime(ano, mes, 1)
-  if mes == 12:
-   fim_mes = datetime(ano, mes, day=31)
-  else:
-   fim_mes = datetime(ano, mes + 1, 1) + timedelta(days=-1)
-  inicio_mes = inicio_mes.strftime("%d/%m/%Y")
-  fim_mes = fim_mes.strftime("%d/%m/%Y")
 
-  actions.send_keys(Keys.TAB).perform()
-  sleep(3)
-  actions.send_keys(inicio_mes).perform()
-  sleep(0.5)
-  actions.send_keys(Keys.TAB).perform()
-  sleep(0.5)
-  actions.send_keys(fim_mes).perform()
+  # A página real (confirmado ao vivo em 01/09/2026 via diagnóstico) tem
+  # UM SÓ campo de período, id="mesAno" -- não um início/fim de data como
+  # o código antigo assumia. Mandar Tab às cegas + duas datas completas
+  # (DD/MM/AAAA) nesse campo único é exatamente o que gerava o alerta
+  # "mes/ano é inválido" (confirmado testando maio E agosto/2026, sempre
+  # o mesmo erro -- não era o período estar velho, era o campo errado).
+  # Preenche direto pelo id, formato MM/AAAA.
+  campo_mes_ano = driver.find_element(By.ID, "mesAno")
+  campo_mes_ano.clear()
+  campo_mes_ano.send_keys(f"{mes:02d}/{ano}")
   sleep(1)
 
   campoConsulta = WebDriverWait(driver, 10).until(
