@@ -244,6 +244,39 @@ def abrir_url_sefaz(driver, url, nome_thread='BOT', tentativas=5, timeout=45) ->
             if tent < tentativas:
                 sleep(5.0)
                 continue
+
+    # Todas as tentativas normais falharam. O driver é criado uma única
+    # vez pro lote inteiro (MainExecution_* não recria por empresa), então
+    # se o renderer da aba atual travou de vez (confirmado ao vivo em
+    # 01/09/2026: "Timed out receiving message from renderer" no log do
+    # chromedriver, página visualmente parada no mesmo estado por vários
+    # minutos, get/screenshot/current_url respondendo mas Navigate nunca
+    # completando), continuar tentando na mesma aba não adianta -- o resto
+    # do lote inteiro ficaria preso. Chrome cria um processo de renderer
+    # novo por aba, então abrir uma aba nova (mantendo a mesma sessão/
+    # perfil/certificado, não precisa relogar) é a recuperação mais barata
+    # antes de desistir de vez.
+    try:
+        print("Todas as tentativas falharam -- tentando recuperar com uma aba nova (renderer pode ter travado)...")
+        handles_antigos = driver.window_handles
+        driver.switch_to.new_window('tab')
+        for h in handles_antigos:
+            try:
+                driver.switch_to.window(h)
+                driver.close()
+            except Exception:
+                pass
+        driver.switch_to.window(driver.window_handles[-1])
+
+        driver.set_page_load_timeout(timeout)
+        driver.get(url)
+        sleep(random.uniform(4.0, 7.0))
+        if not pagina_tem_erro_conexao(driver):
+            print("Recuperado com aba nova.")
+            return True
+    except Exception as e:
+        print(f"Recuperação com aba nova também falhou: {e}")
+
     return False
 
 
@@ -3664,8 +3697,16 @@ def exec_NFCE(driver, nome_thread, name_company, cnpj_cpf, ie, execMes, execAno,
     print("Nenhuma mensagem de erro na tela. Registros de NFC-e localizados!")
     temregistrosNFC = True
 
- except WebDriverException:
-  raise
+ except WebDriverException as e:
+  # Confirmado ao vivo em 01/09/2026: isso relançava sem logar nada,
+  # matando a THREAD INTEIRA do lote (o driver é compartilhado por
+  # todas as empresas -- ver MainExecution_Juridica_Padrao) sem
+  # nenhum rastro no logData. Trata igual a exceção genérica logo
+  # abaixo -- WebDriverException aqui normalmente é só "elemento não
+  # apareceu a tempo" (TimeoutException é subclasse), não motivo pra
+  # derrubar o lote inteiro.
+  print(f"WebDriverException ao processar consulta de NFC-e: {e}")
+  temregistrosNFC = False
  except Exception as e:
   print(f"Erro ao processar consulta de NFC-e: {e}")
   temregistrosNFC = False
@@ -3745,11 +3786,16 @@ def exec_NFCE(driver, nome_thread, name_company, cnpj_cpf, ie, execMes, execAno,
    if not download_concluido:
     raise Exception("Timeout: O download do ZIP de NFC-e iniciou, mas não terminou a tempo.")
 
-  except WebDriverException:
-   raise
   except Exception as e:
-   print('error#9')
-   print(e)
+   # Confirmado ao vivo em 01/09/2026: os dois "raise" aqui (inclusive
+   # o de WebDriverException, sem log nenhum) propagavam pra fora de
+   # exec_NFCE, sem ninguém pegando no loop de MainExecution_Juridica_Padrao
+   # (chamada sem try/except) -- a exceção matava a THREAD INTEIRA do
+   # lote, sem nenhum rastro no logData, silenciosamente. Uma empresa
+   # sem botão de Excel (ou timeout baixando) não é motivo pra
+   # derrubar as outras 700+ da fila -- loga e retorna, deixando o
+   # loop seguir pra próxima empresa.
+   print(f"Erro ao baixar NFC-e: {e}")
    includeLogData(
     nome_thread,
     f'NFCe - {name_company}',
@@ -3760,7 +3806,7 @@ def exec_NFCE(driver, nome_thread, name_company, cnpj_cpf, ie, execMes, execAno,
     'ERRO',
     'danger-gradient'
    )
-   raise
+   return
 
   # Remove planilhas antigas para evitar conflito de nomes
   NomeParcialPlanilha = 'Planilha'
