@@ -267,6 +267,11 @@ def MainExecution_Juridica_Expecifico(listaPessoas, listaParametros, EmpresaExec
 
         '########## FINALIZA O DRIVER ##########'
         driver.close()
+    else:
+        # Ver comentário nas outras 3 variantes (Padrao/Expecifico) --
+        # sem isto o Chrome fica pendurado e trava o perfil persistente
+        # pra qualquer execução seguinte.
+        driver.quit()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
     try:
@@ -449,6 +454,13 @@ def MainExecution_Juridica_Padrao(listaPessoas, listaParametros, EmpresaExec, An
         percentilInicial = percentilInicial + percentilPorPessoa
 
         driver.close()
+    else:
+        # Login falhou (ex: sessão do certificado expirada) -- sem isto o
+        # Chrome/chromedriver nunca fecha, trava o perfil persistente e
+        # QUALQUER execução seguinte (manual ou agendada) falha até
+        # alguém matar o processo zumbi manualmente. Achado ao vivo em
+        # 01/09/2026 tentando reproduzir esse cenário de propósito.
+        driver.quit()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
     try:
@@ -624,6 +636,13 @@ def MainExecution_Fisica_Expecifico(listaPessoas, listaParametros, EmpresaExec, 
         percentilInicial = percentilInicial + percentilPorPessoa
 
         driver.close()
+    else:
+        # Login falhou (ex: sessão do certificado expirada) -- sem isto o
+        # Chrome/chromedriver nunca fecha, trava o perfil persistente e
+        # QUALQUER execução seguinte (manual ou agendada) falha até
+        # alguém matar o processo zumbi manualmente. Achado ao vivo em
+        # 01/09/2026 tentando reproduzir esse cenário de propósito.
+        driver.quit()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
     try:
@@ -773,6 +792,13 @@ def MainExecution_Fisica_Padrao(listaPessoas, listaParametros, EmpresaExec, Ano,
         percentilInicial = percentilInicial + percentilPorPessoa
 
         driver.close()
+    else:
+        # Login falhou (ex: sessão do certificado expirada) -- sem isto o
+        # Chrome/chromedriver nunca fecha, trava o perfil persistente e
+        # QUALQUER execução seguinte (manual ou agendada) falha até
+        # alguém matar o processo zumbi manualmente. Achado ao vivo em
+        # 01/09/2026 tentando reproduzir esse cenário de propósito.
+        driver.quit()
 
     '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
     try:
@@ -1077,6 +1103,18 @@ def MainExecution_Agendamentos(idAgendamento, listaParametros, EmpresaExec, idCi
                 zipData = os.path.join(fr"{caminhoZip}.zip")
                 with zipfile.ZipFile(zipData, 'r') as zip_ref:
                     zip_ref.extractall(pathEnvio)
+
+        # Esta função (execução agendada) nunca fechava o driver, nem no
+        # sucesso nem na falha -- diferente das outras 4 variantes
+        # (Padrao/Expecifico), que ao menos fechavam no sucesso. Pra um
+        # agendamento que roda sozinho, isso significa QUALQUER execução
+        # -- não só as que falham no login -- deixa um Chrome pendurado
+        # segurando o perfil persistente, travando o próximo agendamento.
+        # Achado ao vivo em 01/09/2026 junto com o mesmo bug nas outras 4.
+        try:
+            driver.quit()
+        except Exception:
+            pass
 
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
         if dadosAgendamento.in_repeat:
