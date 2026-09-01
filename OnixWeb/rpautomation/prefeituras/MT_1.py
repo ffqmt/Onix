@@ -316,6 +316,8 @@ def MainExecution_Juridica_Padrao(listaPessoas, listaParametros, EmpresaExec, An
     logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
     if logado:
+        counter = 0  # nunca inicializado antes (bug documentado, nunca corrigido) --
+        # quebrava com UnboundLocalError na primeira empresa, confirmado ao vivo em 01/09/2026
 
         for pessoa in dados:
             counter += 1
@@ -436,9 +438,15 @@ def MainExecution_Juridica_Padrao(listaPessoas, listaParametros, EmpresaExec, An
 
             sleep(10)
             limpar_pasta(pastaArquivos)
-            counter += 1  # ✅ ADICIONAR NO FINAL DO LOOP
+            counter += 1
             print(
-                f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')  # ✅ ADICIONAR
+                # dadosAgendamento não existe nessa função (só em
+                # MainExecution_Agendamentos) -- copiado errado de lá,
+                # confirmado ao vivo em 01/09/2026 (NameError logo depois
+                # do UnboundLocalError do counter). Mesma correção já
+                # aplicada acima na Expecifico (comentário "REMOVIDO
+                # dadosAgendamento.id").
+                f'Finalizado: {counter}/{len(dados)} - Thread: {nome_thread} - Pessoa: ({id_company}) {name_company}')
 
         '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
@@ -673,7 +681,11 @@ def MainExecution_Fisica_Padrao(listaPessoas, listaParametros, EmpresaExec, Ano,
     thread_atual = threading.current_thread()
     nome_thread = thread_atual.name
     caminho_pasta = os.path.join(root_path, fr'OnixWeb\rpautomation\transactionFiles\{nome_thread}')
-    dados = dadosPessoasPJ(listaPessoas, EmpresaExec)
+    # Trocado PJ->PF: bug documentado (ver docs/rpa-refactor-plan.md,
+    # "corrige a troca PJ/PF"), confirmado ao vivo em 01/09/2026 -- essa
+    # função de Pessoa FÍSICA buscava em PessoaJuridica, então os ids de
+    # PF nunca batiam com nada real (dados vazio ou errado).
+    dados = dadosPessoasPF(listaPessoas, EmpresaExec)
     dadosLogin = dadosLoginSefaz(EmpresaExec)
     listaLen = len(listaPessoas)
     percentilProcesso = 80
