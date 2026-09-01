@@ -1327,6 +1327,43 @@ URL_NOTAS_PRESTADAS_PVA = "https://iss.primaveradoleste.mt.gov.br/issweb/paginas
 URL_NOTAS_TOMADAS_PVA = "https://iss.primaveradoleste.mt.gov.br/issweb/paginas/admin/tomador/minhasnotas"
 
 
+def _preparar_pagina_certificado_pva(driver, nome_thread=None, espera_inicial=6.0, espera_apos_reload=4.0):
+    """Carrega a página de login e dá tempo pro componente nativo local da
+    extensão "Fiorilli Web Extension" conectar e enumerar os certificados
+    disponíveis -- sem isso, o botão "Entrar com certificado digital"
+    existe na hora, mas a lista de certificados não aparece ao clicar
+    (observado ao vivo pelo usuário, 01/09/2026: no primeiro load "parece
+    não funcionar", só depois de recarregar a página e esperar um pouco a
+    opção de ver/selecionar o certificado aparece).
+
+    Só prepara a página pra reduzir esse "parece quebrado" -- quem clica o
+    certificado continua sendo um humano de verdade, ver docstring de
+    exec_LOGIN() acima sobre por que esse clique específico não é
+    automatizado (extensão detecta clique de script vs real de propósito).
+
+    Confere a sessão ANTES de forçar o reload -- se o perfil persistente
+    ainda estiver logado (cookie de sessão do portal ainda vale), não faz
+    sentido revisitar /paginas/login duas vezes: na melhor hipótese é
+    trabalho à toa, na pior invalida uma sessão que ainda estava boa. Só
+    entra na espera+reload quando realmente precisa logar de novo.
+    """
+    print(f"[{nome_thread or 'BOT'}] Verificando se a sessão do perfil persistente ainda vale...")
+    driver.get(URL_LOGIN_PVA)
+    try:
+        WebDriverWait(driver, 5).until(lambda d: "/paginas/login" not in d.current_url)
+        print(f"[{nome_thread or 'BOT'}] Sessão ainda válida -- não precisa logar de novo.")
+        return
+    except TimeoutException:
+        pass
+
+    print(f"[{nome_thread or 'BOT'}] Sessão expirada/inexistente. Aguardando componente nativo de certificado conectar...")
+    sleep(espera_inicial)
+    print(f"[{nome_thread or 'BOT'}] Recarregando a página pra garantir que a lista de certificados carregou...")
+    driver.get(URL_LOGIN_PVA)
+    sleep(espera_apos_reload)
+    print(f"[{nome_thread or 'BOT'}] Página pronta -- clique em 'Entrar com certificado digital' e escolha o certificado (clique real, de verdade).")
+
+
 def exec_LOGIN(driver, nome_thread, login_prefeitura, senha_prefeitura):
     """Confere se a sessão do perfil persistente (PERFIL_CHROME_PERSISTENTE)
     ainda está logada -- NÃO tenta logar sozinha. O portal exige
@@ -1409,8 +1446,37 @@ def _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
         campo_cnpj = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, 'input[id$=":itCpfCnpj"]'))
         )
-        campo_cnpj.clear()
-        campo_cnpj.send_keys(cnpj_cpf)
+        # send_keys() digitando char a char foi parar no campo errado --
+        # confirmado ao vivo em 01/09/2026 (diagnóstico salvo): o texto
+        # apareceu em "Razão Social/Nome" (id$=":itNome"), não em "CNPJ ou
+        # CPF", provável máscara/JS do campo desviando o foco durante a
+        # digitação. Define o valor via JS direto (atômico, não depende de
+        # timing de tecla) e limpa "itNome" por segurança, caso tenha
+        # sobrado algo lá de uma tentativa anterior.
+        driver.execute_script(
+            """
+            var el = arguments[0], val = arguments[1];
+            el.focus();
+            el.value = val;
+            el.dispatchEvent(new Event('input', {bubbles: true}));
+            el.dispatchEvent(new Event('change', {bubbles: true}));
+            el.dispatchEvent(new Event('keyup', {bubbles: true}));
+            """,
+            campo_cnpj, cnpj_cpf,
+        )
+        try:
+            campo_nome = driver.find_element(By.CSS_SELECTOR, 'input[id$=":itNome"]')
+            if campo_nome.get_attribute('value'):
+                driver.execute_script(
+                    "arguments[0].value = ''; arguments[0].dispatchEvent(new Event('input', {bubbles: true}));",
+                    campo_nome,
+                )
+        except Exception:
+            pass
+
+        valor_confirmado = campo_cnpj.get_attribute('value') or ''
+        if cnpj_cpf not in valor_confirmado:
+            print(f"Aviso: campo CNPJ/CPF ficou com '{valor_confirmado}' em vez de '{cnpj_cpf}'.")
 
         botao_pesquisar = driver.find_element(By.CSS_SELECTOR, 'button[id$=":btnDefault"]')
         botao_pesquisar.click()
@@ -1591,438 +1657,38 @@ def exec_PDF_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
     )
 
 
-'''
 def exec_XML_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
-    actions = ActionChains(driver)
-    mes = int(execMes)
-    ano = int(execAno)
-
-    includeLogData(nome_thread,
-                   f'NFSE - {name_company}',
-                   f'Iniciando processo de download de NFSe de serviços Tomados.',
-                   f'{cnpj_cpf}',
-                   'TOMADOS',
-                   'info-gradient',
-                   'SUCESSO',
-                   'success-gradient')
-
-    pasta_xml_tomados = os.path.join(pastaArquivos, 'XML - Tomados')
-
-    # Crie a pasta se não existir
-    if not os.path.exists(pasta_xml_tomados):
-        os.makedirs(pasta_xml_tomados)
-        print(f"Pasta criada: {pasta_xml_tomados}")
+    """Antes chamava uma implementação inteira pro portal antigo
+    (cidadaoonline...), comentada e nunca migrada -- deixava a função
+    indefinida enquanto MainExecution_* continuava chamando de verdade
+    (NameError toda vez que a lista de parâmetros pedia XML de Tomados,
+    confirmado por leitura de código em 01/09/2026, nunca visto em
+    produção porque ninguém tinha marcado essa opção ainda). Mesmo padrão
+    de exec_PDF_TOMADOS, só que pedindo XML em vez de PDF."""
+    if not _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
+        return
+    _buscar_e_exportar_notas(
+        driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos,
+        url_lista=URL_NOTAS_TOMADAS_PVA,
+        nome_arquivo_pdf=None,
+        nome_arquivo_xml="NFS-e - Tomados.xml",
+        tipo_log="TOMADOS",
+    )
 
 
-    try:
-        xml_prestadas = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/notasubstitutiva'
-        driver.get(f'{xml_prestadas}')
-
-        ng_select = WebDriverWait(driver, 9).until(
-            EC.presence_of_element_located((By.XPATH, "//ng-select"))
-        )
-        ng_select.click()
-
-        # Certifique-se de que idDoc está definido antes de usar
-
-        for char in f'{cnpj_cpf}':
-            # Espera até que o campo de entrada esteja presente
-            campoEntrada = WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
-            )
-
-            # Envia o texto desejado para o campo de entrada
-            campoEntrada.send_keys(cnpj_cpf)  # Envia a string completa
-
-            # Espera que a lista de resultados apareça
-            WebDriverWait(driver, 2).until(
-                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
-            )
-            sleep(2)
-            primeiraOpcao = WebDriverWait(driver, 1).until(
-                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
-            )
-            primeiraOpcao.click()  # Clica na primeira opção
-
-            # Preencher o campo de data
-            campoData = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="competencia"]'))
-            )
-            campoData.click()  # Clica no campo de data
-            campoData.clear()  # Limpa o campo antes de digitar
-            campoData.send_keys(f"{mes}/{ano}")  # Digita a data no formato desejado
-            campoData.send_keys(Keys.TAB)
-
-            sleep(2)
-
-            # Selecionar a quantidade de itens por página
-            selectQuantidade = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.ID, 'pagination'))  # Ajuste o nome conforme necessário
-            )
-            select = Select(selectQuantidade)
-            select.select_by_visible_text('100')  # Seleciona 100 itens por página
-
-            driver.execute_script("window.scrollTo(0, 0);")
-
-            sleep(2)
-
-            try:
-                WebDriverWait(driver, 10).until(
-                    EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
-                )
-
-                # Executar o comando JavaScript para clicar no checkbox desejado
-                driver.execute_script("document.querySelector('thead .form-check-input').click();")
-                sleep(1)  # Esperar um momento para ver se o estado muda
-
-                # Verificar o estado do checkbox
-                checkbox = driver.find_element(By.CSS_SELECTOR, 'thead .form-check-input')
-                is_checked = checkbox.is_selected()
-                print(f"O checkbox está marcado: {is_checked}")
-
-            except Exception as e:
-                print(f"Ocorreu um erro ao tentar marcar o checkbox: {e}")
-
-            # Verificar se há mais páginas e iterar por elas
-            while True:
-                try:
-                    # Localiza o elemento de paginação
-                    paginacao = driver.find_element(By.XPATH,
-                                                    '/html/body/app-root/app-layout/div/div[2]/app-nota-substitutiva/div/div[3]/div/div/div[1]/ngb-pagination')
-
-                    # Localiza o botão de próxima página
-                    proximaPagina = paginacao.find_element(By.XPATH,
-                                                           './/li[@class="page-item ng-star-inserted"]/a[@aria-label="Next"]')
-
-                    # Verifica se o <a> está visível e habilitado
-                    if proximaPagina.is_displayed() and proximaPagina.is_enabled():
-                        proximaPagina.click()  # Clica na próxima página
-                        sleep(1)  # Aguarda o carregamento da nova página
-
-                        checkboxes = driver.find_elements(By.CSS_SELECTOR, 'thead .form-check-input')
-                        for checkbox in checkboxes:
-                            if not checkbox.is_selected():
-                                checkbox.click()  # Marca o checkbox se não estiver selecionado
-                        sleep(0.1)  # Aguarde a seleção
-
-                    else:
-                        break  # Sai do loop se o botão estiver desabilitado
-
-                except NoSuchElementException:
-                    break  # Sai do loop se não houver mais páginas
-
-            sleep(1)
-
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            sleep(1)  # Aguarda um momento após a rolagem
-
-            original_window = driver.current_window_handle
-
-            driver.execute_cdp_cmd('Page.setDownloadBehavior',
-                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
-
-            imprimir_notas = driver.find_element(By.XPATH,
-                                                 '//button[contains(@class, "btn-success") and contains(., "XML Seleção")]')
-            imprimir_notas.click()  # Clica no botão de imprimir
-
-            sleep(3)
-
-            if '{"code":2,"error":"Undefined array key 1"}' in driver.page_source:
-                print("Erro detectado: 'Undefined array key 1'. Fechando a janela...")
-                driver.close()  # Fecha a janela atual
-                driver.switch_to.window(driver.window_handles[0])  # Volta para a janela principal
-
-
-                continue  # Tente novamente
-
-                # Verifique se o download foi bem-sucedido (implemente sua lógica aqui)
-            if verificar_download(pastaArquivos):  # Função que verifica se o download foi concluído
-                print(f"Download concluído para {name_company}.")
-                break  # Saia do loop se o download foi bem-sucedido
-
-            try:
-                driver.close()  # Fecha a janela atual
-                driver.switch_to.window(driver.window_handles[0])  # Volta para a janela principal
-            except Exception as close_error:
-                print(f"Erro ao fechar a janela: {close_error}")
-
-
-        if tentativas == max_tentativas:
-            print(f"Falha ao concluir o download após {max_tentativas} tentativas.")
-
-            try:
-                downloaded = False
-                while not downloaded:
-                    NomeParcial = 'NFS'
-                    arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
-                    for arquivo in arquivos_zip:
-                        if NomeParcial in arquivo:
-                            if verify_downloaded(arquivo):
-                                downloaded = True
-                                print(f"Download reconhecido: {arquivo}")
-                            else:
-                                print(f"Download não reconhecido ainda: {arquivo}")
-                            sleep(1)
-
-                if downloaded:
-                    # Remover arquivos XML antigos
-                    NomeParcialPlanilha = 'NFSe'
-                    arquivos_planilha_remover = glob.glob(os.path.join(pastaArquivos, '*.xml'))
-                    for arquivo in arquivos_planilha_remover:
-                        if NomeParcialPlanilha in arquivo and os.path.exists(arquivo):
-                            os.remove(arquivo)
-
-                    # Extrair arquivos ZIP
-                    for arquivo in arquivos_zip:
-                        if NomeParcial in arquivo:
-                            with zipfile.ZipFile(arquivo, 'r') as nome_zip:
-                                nome_zip.extractall(path=pastaArquivos)  # Extrai todos os arquivos XML sem renomeá-los
-                                print(f"Arquivos extraídos de: {arquivo}")  # Mensagem de depuração
-
-                    arquivos_xml = glob.glob(os.path.join(pastaArquivos, '*.xml'))
-                    print(f"Arquivos XML encontrados após extração: {arquivos_xml}")  # Depuração
-
-                    # Mover os arquivos XML para a nova pasta
-                    for arquivo in os.listdir(pastaArquivos):
-                        novo_nome_parcial = 'NFSe20'
-                        if arquivo.endswith('.xml') and novo_nome_parcial in arquivo: # Verifica se é um arquivo XML
-                            novo_nome = arquivo[-10:]  # Mantém os últimos 6 caracteres
-                            novo_nome_completo = f"{novo_nome}"  # Adiciona a extensão .xml
-                            caminho_origem = os.path.join(pastaArquivos, arquivo)
-                            caminho_destino = os.path.join(pasta_xml_tomados, novo_nome_completo)
-
-                            # Move e renomeia o arquivo
-                            shutil.move(caminho_origem, caminho_destino)
-                            print(f"Arquivo movido: {caminho_origem} -> {caminho_destino}")
-
-                        else:
-                            print(f"Arquivo não encontrado para mover: {arquivo}")  # Depuração
-                limpar_pasta(pastaArquivos)
-
-            except Exception as e:
-                # Tratamento da exceção
-                print(e)
-    except Exception as e:
-        # Tratamento da exceção
-        print(e)
-'''
-
-
-def exec_PDF_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+def exec_XML_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    """Ver docstring de exec_XML_TOMADOS acima -- mesmo bug (NameError),
+    mesma correção, versão Prestados."""
     if not _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
         return
     _buscar_e_exportar_notas(
         driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos,
         url_lista=URL_NOTAS_PRESTADAS_PVA,
-        nome_arquivo_pdf="NFS-e - Prestados.pdf",
-        nome_arquivo_xml=None,
+        nome_arquivo_pdf=None,
+        nome_arquivo_xml="NFS-e - Prestados.xml",
         tipo_log="PRESTADOS",
     )
 
-'''def exec_XML_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
-    actions = ActionChains(driver)
-    mes = int(execMes)
-    ano = int(execAno)
-    ultimo_dia = calendar.monthrange(ano, mes)[1]  # Obtém o último dia do mês
-
-    includeLogData(nome_thread,
-                   f'NFSE - {name_company}',
-                   f'Iniciando processo de download de NFSe de serviços Prestados.',
-                   f'{cnpj_cpf}',
-                   'PRESTADOS',
-                   'info-gradient',
-                   'SUCESSO',
-                   'success-gradient')
-
-    pasta_xml_prestados = os.path.join(pastaArquivos, 'XML - Prestados')
-
-    # Crie a pasta se não existir
-    if not os.path.exists(pasta_xml_prestados):
-        os.makedirs(pasta_xml_prestados)
-        print(f"Pasta criada: {pasta_xml_prestados}")
-
-    try:
-        xml_prestadas = 'https://cidadaoonline.primaveradoleste.mt.gov.br/app/empresas/notaeletronica'
-        driver.get(f'{xml_prestadas}')
-        ng_select = WebDriverWait(driver, 9).until(
-            EC.presence_of_element_located((By.XPATH, "//ng-select"))
-        )
-        ng_select.click()
-
-        # Certifique-se de que idDoc está definido antes de usar
-
-        for char in f'{cnpj_cpf}':
-            # Espera até que o campo de entrada esteja presente
-            campoEntrada = WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.XPATH, "//ng-select//input"))
-            )
-
-            # Envia o texto desejado para o campo de entrada
-            campoEntrada.send_keys(cnpj_cpf)  # Envia a string completa
-
-            # Espera que a lista de resultados apareça
-            WebDriverWait(driver, 2).until(
-                EC.visibility_of_element_located((By.XPATH, '//ng-dropdown-panel'))
-            )
-            sleep(2)
-            primeiraOpcao = WebDriverWait(driver, 1).until(
-                EC.element_to_be_clickable((By.XPATH, '//ng-dropdown-panel//div[contains(@class, "ng-option")]'))
-            )
-            primeiraOpcao.click()  # Clica na primeira opção
-
-            # Preencher o campo de data inicial
-            campoDatainicial = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="nfse_data_inicial"]'))
-            )
-            campoDatainicial.click()  # Clica no campo de data
-            campoDatainicial.clear()  # Limpa o campo antes de digitar
-            campoDatainicial.send_keys(f"01/{mes}/{ano}")  # Digita a data no formato desejado
-            campoDatainicial.send_keys(Keys.TAB)
-
-            sleep(0.5)
-
-            # Preencher o campo de data final
-            campoDatafinal = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.XPATH, '//input[@formcontrolname="nfse_data_final"]'))
-            )
-            campoDatafinal.click()  # Clica no campo de data
-            campoDatafinal.clear()  # Limpa o campo antes de digitar
-            campoDatafinal.send_keys(f"{ultimo_dia}/{mes}/{ano}")  # Digita a data no formato desejado
-            campoDatafinal.send_keys(Keys.TAB)
-
-            # Selecionar a quantidade de itens por página
-            selectQuantidade = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.ID, 'pagination'))  # Ajuste o nome conforme necessário
-            )
-            select = Select(selectQuantidade)
-            select.select_by_visible_text('100')  # Seleciona 100 itens por página
-            print("Paginou")
-            driver.execute_script("window.scrollTo(0, 0);")
-            print("Subiu")
-            sleep(2)
-
-            try:
-                WebDriverWait(driver, 10).until(
-                    EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
-                )
-
-                # Executar o comando JavaScript para clicar no checkbox desejado
-                driver.execute_script("document.querySelector('thead .form-check-input').click();")
-                sleep(1)  # Esperar um momento para ver se o estado muda
-
-                # Verificar o estado do checkbox
-                checkbox = driver.find_element(By.CSS_SELECTOR, 'thead .form-check-input')
-                is_checked = checkbox.is_selected()
-                print(f"O checkbox está marcado: {is_checked}")
-
-            except Exception as e:
-                print(f"Ocorreu um erro ao tentar marcar o checkbox: {e}")
-
-            # Verificar se há mais páginas e iterar por elas
-            try:
-                # Localiza o elemento de paginação
-                paginacao = driver.find_element(By.XPATH,
-                                                '/html/body/app-root/app-layout/div/div[2]/app-nota-substitutiva/div/div[3]/div/div/div[1]/ngb-pagination')
-
-                # Localiza o botão de próxima página
-                proximaPagina = paginacao.find_element(By.XPATH,
-                                                       './/a[@aria-label="Next"]')
-                print("Encontrou botão de próxima página")
-
-                if proximaPagina.is_displayed() and not proximaPagina.get_attribute("aria-disabled"):
-                    proximaPagina.click()  # Clica na próxima página
-                    sleep(1)  # Aguarda o carregamento da nova página
-
-                    driver.execute_script("window.scrollTo(0, 0);")
-                    print("Subiu")
-                    sleep(2)
-
-                    # Espera até que a tabela esteja visível novamente
-                    WebDriverWait(driver, 5).until(
-                        EC.visibility_of_element_located((By.TAG_NAME, 'thead'))
-                    )
-
-                    checkboxes = driver.find_elements(By.CSS_SELECTOR, 'thead .form-check-input')
-                    for checkbox in checkboxes:
-                        if not checkbox.is_selected():
-                            checkbox.click()  # Marca o checkbox se não estiver selecionado
-                    sleep(3)  # Aguarde a seleção
-
-                else:
-                    break  # Sai do loop se o botão estiver desabilitado
-
-            except NoSuchElementException:
-                break  # Sai do loop se não houver mais páginas
-
-            sleep(1)
-
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            sleep(1)  # Aguarda um momento após a rolagem
-
-            original_window = driver.current_window_handle
-
-            driver.execute_cdp_cmd('Page.setDownloadBehavior',
-                                   {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
-
-            imprimir_notas = driver.find_element(By.XPATH,
-                                                 '//button[contains(@class, "btn-success") and contains(., "XML Seleção")]')
-            imprimir_notas.click()  # Clica no botão de imprimir
-
-            try:
-                downloaded = False
-                while not downloaded:
-                    NomeParcial = 'NFS'
-                    arquivos_zip = glob.glob(os.path.join(pastaArquivos, '*.zip'))
-                    for arquivo in arquivos_zip:
-                        if NomeParcial in arquivo:
-                            if verify_downloaded(arquivo):
-                                downloaded = True
-                                print(f"Download reconhecido: {arquivo}")
-                            else:
-                                print(f"Download não reconhecido ainda: {arquivo}")
-                            sleep(1)
-
-                if downloaded:
-                    # Remover arquivos XML antigos
-                    NomeParcialPlanilha = 'NFSe'
-                    arquivos_planilha_remover = glob.glob(os.path.join(pastaArquivos, '*.xml'))
-                    for arquivo in arquivos_planilha_remover:
-                        if NomeParcialPlanilha in arquivo and os.path.exists(arquivo):
-                            os.remove(arquivo)
-
-                    # Extrair arquivos ZIP
-                    for arquivo in arquivos_zip:
-                        if NomeParcial in arquivo:
-                            with zipfile.ZipFile(arquivo, 'r') as nome_zip:
-                                nome_zip.extractall(path=pastaArquivos)  # Extrai todos os arquivos XML sem renomeá-los
-                                print(f"Arquivos extraídos de: {arquivo}")  # Mensagem de depuração
-
-                    arquivos_xml = glob.glob(os.path.join(pastaArquivos, '*.xml'))
-                    print(f"Arquivos XML encontrados após extração: {arquivos_xml}")  # Depuração
-
-                    # Mover os arquivos XML para a nova pasta
-
-                    for arquivo in os.listdir(pastaArquivos):
-                        novo_nome_parcial = 'NFSe20'
-                        if arquivo.endswith('.xml') and novo_nome_parcial in arquivo: # Verifica se é um arquivo XML
-                            novo_nome = arquivo[-10:]  # Mantém os últimos 6 caracteres
-                            novo_nome_completo = f"{novo_nome}"  # Adiciona a extensão .xml
-                            caminho_origem = os.path.join(pastaArquivos, arquivo)
-                            caminho_destino = os.path.join(pasta_xml_prestados, novo_nome_completo)
-
-                            # Move e renomeia o arquivo
-                            shutil.move(caminho_origem, caminho_destino)
-                            print(f"Arquivo movido: {caminho_origem} -> {caminho_destino}")
-
-                        else:
-                            print(f"Arquivo não encontrado para mover: {arquivo}")  # Depuração
-
-            except Exception as e:
-                # Tratamento da exceção
-                print(e)
-    except Exception as e:
-    # Tratamento da exceção
-        print(e)'''
 
 def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
     actions = ActionChains(driver)
@@ -2907,9 +2573,7 @@ if __name__ == "__main__":
         print(f"Perfil: {PERFIL_CHROME_PERSISTENTE}")
         driver = IniciarDriver(headless=False)
         try:
-            driver.get(URL_LOGIN_PVA)
-            print(f"\nNavegador aberto em {URL_LOGIN_PVA}.")
-            print("Clique em 'Entrar com certificado digital' e escolha o certificado -- clique real, de verdade.")
+            _preparar_pagina_certificado_pva(driver, "login-manual")
             print("Se pedir para instalar a extensão 'Fiorilli Web Extension' nesse perfil, instale (só na primeira vez).")
             input("\nDepois de logar (a página não deve mais mostrar o formulário de login), aperte Enter aqui...")
             if "/paginas/login" in driver.current_url:
@@ -2935,9 +2599,7 @@ if __name__ == "__main__":
         print(f"Perfil: {PERFIL_CHROME_PERSISTENTE}")
         driver = IniciarDriver(headless=False)
         try:
-            driver.get(URL_LOGIN_PVA)
-            print(f"\nNavegador aberto em {URL_LOGIN_PVA}.")
-            print("Clique em 'Entrar com certificado digital' e escolha o certificado -- clique real, de verdade.")
+            _preparar_pagina_certificado_pva(driver, "verificar")
             print("Esperando você logar (sem limite de tempo pra digitar nada aqui, só clicar lá na janela)...")
 
             logado = False
