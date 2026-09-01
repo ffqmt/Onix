@@ -941,96 +941,136 @@ def MainExecution_Juridica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                                'SUCESSO',
                                'success-gradient')
 
-                name_company = pessoa['name']
-                id_company = pessoa['id']
-                username = pessoa['username']
-                ie = pessoa['ie']
-                tipo_exec = 'PJ'
-                listaParametros = checkParamPadrao(tipo_exec, id_company)
+                # RETRY POR PESSOA -- se o Chrome/Driver cair no meio do
+                # processamento (WebDriverException, inclusive
+                # StaleElementReferenceException/TimeoutException), recria o
+                # driver e reloga em vez de deixar propagar e matar a THREAD
+                # DO LOTE INTEIRO (o driver é único, compartilhado por todas
+                # as pessoas). Confirmado ao vivo em 01/09/2026:
+                # MainExecution_Juridica_Expecifico já tinha essa proteção
+                # (porta o mesmo padrão), Padrao não -- foi exatamente a
+                # falta dela que interrompeu um lote real de 742 empresas
+                # depois de só 10 processadas (stale element reference sem
+                # retry). Diferente do Expecifico, esgotar as tentativas
+                # aqui só PULA a pessoa (não propaga) -- um lote desse
+                # tamanho não pode parar inteiro por causa de uma pessoa.
+                max_tentativas_pessoa = 2
+                for tentativa in range(1, max_tentativas_pessoa + 1):
+                 try:
+                    name_company = pessoa['name']
+                    id_company = pessoa['id']
+                    username = pessoa['username']
+                    ie = pessoa['ie']
+                    tipo_exec = 'PJ'
+                    listaParametros = checkParamPadrao(tipo_exec, id_company)
 
-                '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
-                anoExec = f'{Ano}'
-                if len(str(Mes)) == 1:
-                    mesExec = f'0{Mes}'
-                else:
-                    mesExec = f'{Mes}'
+                    '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+                    anoExec = f'{Ano}'
+                    if len(str(Mes)) == 1:
+                        mesExec = f'0{Mes}'
+                    else:
+                        mesExec = f'{Mes}'
 
-                '########## VERIFICA PASTA TEMPORARIA ##########'
-                nome_empresa = f"{name_company}"
-                pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "FISCAL PJ", anoExec, mesExec, "Relatórios")
-                if not os.path.exists(pastaArquivos):
-                    os.makedirs(pastaArquivos)
+                    '########## VERIFICA PASTA TEMPORARIA ##########'
+                    nome_empresa = f"{name_company}"
+                    pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "FISCAL PJ", anoExec, mesExec, "Relatórios")
+                    if not os.path.exists(pastaArquivos):
+                        os.makedirs(pastaArquivos)
 
-                driver.execute_cdp_cmd('Page.setDownloadBehavior',
-                                       {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+                    driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                           {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
-                '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-                if listaParametros['nfe_saida']:
-                    exec_NFE_SAIDA(driver=driver,
-                                   nome_thread=nome_thread,
-                                   tipo_exec=tipo_exec,
-                                   name_company=name_company,
-                                   cnpj_cpf=username,
-                                   idDoc=username,
-                                   execMes=mesExec,
-                                   execAno=anoExec,
-                                   pastaArquivos=pastaArquivos)
-                if listaParametros['nfe_entrada']:
-                    exec_NFE_ENTRADA(driver=driver,
-                                     nome_thread=nome_thread,
-                                     tipo_exec=tipo_exec,
-                                     name_company=name_company,
-                                     cnpj_cpf=username,
-                                     idDoc=username,
-                                     execMes=mesExec,
-                                     execAno=anoExec,
-                                     pastaArquivos=pastaArquivos)
+                    '######### EXECUTA ESCOLHAS APOS LOGADO ########'
+                    if listaParametros['nfe_saida']:
+                        exec_NFE_SAIDA(driver=driver,
+                                       nome_thread=nome_thread,
+                                       tipo_exec=tipo_exec,
+                                       name_company=name_company,
+                                       cnpj_cpf=username,
+                                       idDoc=username,
+                                       execMes=mesExec,
+                                       execAno=anoExec,
+                                       pastaArquivos=pastaArquivos)
+                    if listaParametros['nfe_entrada']:
+                        exec_NFE_ENTRADA(driver=driver,
+                                         nome_thread=nome_thread,
+                                         tipo_exec=tipo_exec,
+                                         name_company=name_company,
+                                         cnpj_cpf=username,
+                                         idDoc=username,
+                                         execMes=mesExec,
+                                         execAno=anoExec,
+                                         pastaArquivos=pastaArquivos)
 
-                if listaParametros['cte_emissor']:
-                    exec_CTE_EMISSOR(driver=driver,
-                                     nome_thread=nome_thread,
-                                     tipo_exec=tipo_exec,
-                                     name_company=name_company,
-                                     cnpj_cpf=username,
-                                     idDoc=username,
-                                     execMes=mesExec,
-                                     execAno=anoExec,
-                                     pastaArquivos=pastaArquivos)
+                    if listaParametros['cte_emissor']:
+                        exec_CTE_EMISSOR(driver=driver,
+                                         nome_thread=nome_thread,
+                                         tipo_exec=tipo_exec,
+                                         name_company=name_company,
+                                         cnpj_cpf=username,
+                                         idDoc=username,
+                                         execMes=mesExec,
+                                         execAno=anoExec,
+                                         pastaArquivos=pastaArquivos)
 
-                if listaParametros['cte_tomador']:
-                    exec_CTE_TOMADOR(driver=driver,
-                                     nome_thread=nome_thread,
-                                     tipo_exec=tipo_exec,
-                                     name_company=name_company,
-                                     cnpj_cpf=username,
-                                     idDoc=username,
-                                     execMes=mesExec,
-                                     execAno=anoExec,
-                                     pastaArquivos=pastaArquivos)
+                    if listaParametros['cte_tomador']:
+                        exec_CTE_TOMADOR(driver=driver,
+                                         nome_thread=nome_thread,
+                                         tipo_exec=tipo_exec,
+                                         name_company=name_company,
+                                         cnpj_cpf=username,
+                                         idDoc=username,
+                                         execMes=mesExec,
+                                         execAno=anoExec,
+                                         pastaArquivos=pastaArquivos)
 
-                if listaParametros['nfce_emitida']:
-                    exec_NFCE(driver=driver,
-                              nome_thread=nome_thread,
-                              name_company=name_company,
-                              cnpj_cpf=username,
-                              ie=ie,
-                              execMes=mesExec,
-                              execAno=anoExec,
-                              pastaArquivos=pastaArquivos)
-                sleep(1)
-                limpar_pasta(pastaArquivos)
+                    if listaParametros['nfce_emitida']:
+                        exec_NFCE(driver=driver,
+                                  nome_thread=nome_thread,
+                                  name_company=name_company,
+                                  cnpj_cpf=username,
+                                  ie=ie,
+                                  execMes=mesExec,
+                                  execAno=anoExec,
+                                  pastaArquivos=pastaArquivos)
+                    sleep(1)
+                    limpar_pasta(pastaArquivos)
 
-                print(f'Processo Finalizado para: ({id_company}) {name_company}')
-                includeLogData(nome_thread,
-                               f'PROCESSOS - {pessoa["name"]}',
-                               'Processos finalizados para a pessoa...',
-                               'BOT',
-                               'BOT',
-                               'primary-gradient',
-                               'SUCESSO',
-                               'success-gradient')
-                setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
-                percentilInicial = percentilInicial + percentilPorPessoa
+                    print(f'Processo Finalizado para: ({id_company}) {name_company}')
+                    includeLogData(nome_thread,
+                                   f'PROCESSOS - {pessoa["name"]}',
+                                   'Processos finalizados para a pessoa...',
+                                   'BOT',
+                                   'BOT',
+                                   'primary-gradient',
+                                   'SUCESSO',
+                                   'success-gradient')
+                    setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
+                    percentilInicial = percentilInicial + percentilPorPessoa
+                    break
+                 except WebDriverException as e:
+                    includeLogData(
+                        nome_thread,
+                        f'DRIVER CAIU - {pessoa["name"]}',
+                        f'Chrome/Driver caiu (tentativa {tentativa}/{max_tentativas_pessoa}). Recriando driver e relogando...',
+                        f'{pessoa.get("username", "BOT")}',
+                        'RPA',
+                        'danger-gradient',
+                        'ERRO',
+                        'danger-gradient'
+                    )
+                    try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    if tentativa < max_tentativas_pessoa:
+                        driver = IniciarDriver(nome_thread=nome_thread)
+                        logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
+                        if not logado:
+                            print(f"Nao conseguiu relogar apos driver cair -- pulando {pessoa['name']}.")
+                            break
+                        continue
+                    print(f"Pulando {pessoa['name']} apos {max_tentativas_pessoa} tentativas: {e}")
 
         '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
         try:
@@ -1283,98 +1323,131 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
                                'SUCESSO',
                                'success-gradient')
 
-                name_company = pessoa['name']
-                id_company = pessoa['id']
-                username = pessoa['username']
-                ie = pessoa['ie']
-                tipo_exec = 'PF'
-                listaParametros = checkParamPadrao(tipo_exec, id_company)
+                # RETRY POR PESSOA -- mesma protecao portada pra
+                # MainExecution_Juridica_Padrao (ver comentario la, commit
+                # de 01/09/2026): se o Chrome/Driver cair no meio do
+                # processamento, recria o driver e reloga em vez de matar a
+                # thread do lote inteiro. Esgotar as tentativas so PULA a
+                # pessoa, nao propaga.
+                max_tentativas_pessoa = 2
+                for tentativa in range(1, max_tentativas_pessoa + 1):
+                 try:
+                    name_company = pessoa['name']
+                    id_company = pessoa['id']
+                    username = pessoa['username']
+                    ie = pessoa['ie']
+                    tipo_exec = 'PF'
+                    listaParametros = checkParamPadrao(tipo_exec, id_company)
 
-                '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
-                anoExec = f'{Ano}'
-                if len(str(Mes)) == 1:
-                    mesExec = f'0{Mes}'
-                else:
-                    mesExec = f'{Mes}'
+                    '########### DADOS DE ANO E MES DA EXECUÇÃO ###########'
+                    anoExec = f'{Ano}'
+                    if len(str(Mes)) == 1:
+                        mesExec = f'0{Mes}'
+                    else:
+                        mesExec = f'{Mes}'
 
-                '########## VERIFICA PASTA TEMPORARIA ##########'
-                nome_empresa = f"{name_company}"
-                pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "RURAL", anoExec, mesExec,
-                                             "Relatórios")
-                if not os.path.exists(pastaArquivos):
-                    os.makedirs(pastaArquivos)
+                    '########## VERIFICA PASTA TEMPORARIA ##########'
+                    nome_empresa = f"{name_company}"
+                    pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "RURAL", anoExec, mesExec,
+                                                 "Relatórios")
+                    if not os.path.exists(pastaArquivos):
+                        os.makedirs(pastaArquivos)
 
-                driver.execute_cdp_cmd('Page.setDownloadBehavior',
-                                       {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
+                    driver.execute_cdp_cmd('Page.setDownloadBehavior',
+                                           {'behavior': 'allow', 'downloadPath': rf'{pastaArquivos}'})
 
-                '######### EXECUTA ESCOLHAS APOS LOGADO ########'
-                if listaParametros['nfe_saida']:
-                    exec_NFE_SAIDA(driver=driver,
-                                   nome_thread=nome_thread,
-                                   tipo_exec=tipo_exec,
-                                   name_company=name_company,
-                                   cnpj_cpf=username,
-                                   idDoc=ie,
-                                   execMes=mesExec,
-                                   execAno=anoExec,
-                                   pastaArquivos=pastaArquivos)
-                if listaParametros['nfe_entrada']:
-                    exec_NFE_ENTRADA(driver=driver,
-                                     nome_thread=nome_thread,
-                                     tipo_exec=tipo_exec,
-                                     name_company=name_company,
-                                     cnpj_cpf=username,
-                                     idDoc=ie,
-                                     execMes=mesExec,
-                                     execAno=anoExec,
-                                     pastaArquivos=pastaArquivos)
+                    '######### EXECUTA ESCOLHAS APOS LOGADO ########'
+                    if listaParametros['nfe_saida']:
+                        exec_NFE_SAIDA(driver=driver,
+                                       nome_thread=nome_thread,
+                                       tipo_exec=tipo_exec,
+                                       name_company=name_company,
+                                       cnpj_cpf=username,
+                                       idDoc=ie,
+                                       execMes=mesExec,
+                                       execAno=anoExec,
+                                       pastaArquivos=pastaArquivos)
+                    if listaParametros['nfe_entrada']:
+                        exec_NFE_ENTRADA(driver=driver,
+                                         nome_thread=nome_thread,
+                                         tipo_exec=tipo_exec,
+                                         name_company=name_company,
+                                         cnpj_cpf=username,
+                                         idDoc=ie,
+                                         execMes=mesExec,
+                                         execAno=anoExec,
+                                         pastaArquivos=pastaArquivos)
 
-                if listaParametros['cte_emissor']:
-                    exec_CTE_EMISSOR(driver=driver,
-                                     nome_thread=nome_thread,
-                                     tipo_exec=tipo_exec,
-                                     name_company=name_company,
-                                     cnpj_cpf=username,
-                                     idDoc=ie,
-                                     execMes=mesExec,
-                                     execAno=anoExec,
-                                     pastaArquivos=pastaArquivos)
+                    if listaParametros['cte_emissor']:
+                        exec_CTE_EMISSOR(driver=driver,
+                                         nome_thread=nome_thread,
+                                         tipo_exec=tipo_exec,
+                                         name_company=name_company,
+                                         cnpj_cpf=username,
+                                         idDoc=ie,
+                                         execMes=mesExec,
+                                         execAno=anoExec,
+                                         pastaArquivos=pastaArquivos)
 
-                if listaParametros['cte_tomador']:
-                    exec_CTE_TOMADOR(driver=driver,
-                                     nome_thread=nome_thread,
-                                     tipo_exec=tipo_exec,
-                                     name_company=name_company,
-                                     cnpj_cpf=username,
-                                     idDoc=username,
-                                     execMes=mesExec,
-                                     execAno=anoExec,
-                                     pastaArquivos=pastaArquivos)
+                    if listaParametros['cte_tomador']:
+                        exec_CTE_TOMADOR(driver=driver,
+                                         nome_thread=nome_thread,
+                                         tipo_exec=tipo_exec,
+                                         name_company=name_company,
+                                         cnpj_cpf=username,
+                                         idDoc=username,
+                                         execMes=mesExec,
+                                         execAno=anoExec,
+                                         pastaArquivos=pastaArquivos)
 
-                if listaParametros['nfce_emitida']:
-                    exec_NFCE(driver=driver,
-                              nome_thread=nome_thread,
-                              name_company=name_company,
-                              cnpj_cpf=username,
-                              ie=ie,
-                              execMes=mesExec,
-                              execAno=anoExec,
-                              pastaArquivos=pastaArquivos)
+                    if listaParametros['nfce_emitida']:
+                        exec_NFCE(driver=driver,
+                                  nome_thread=nome_thread,
+                                  name_company=name_company,
+                                  cnpj_cpf=username,
+                                  ie=ie,
+                                  execMes=mesExec,
+                                  execAno=anoExec,
+                                  pastaArquivos=pastaArquivos)
 
-                sleep(1)
-                limpar_pasta(pastaArquivos)
+                    sleep(1)
+                    limpar_pasta(pastaArquivos)
 
-                print(f'Processo Finalizado para: ({id_company}) {name_company}')
-                includeLogData(nome_thread,
-                               f'PROCESSOS - {pessoa["name"]}',
-                               'Processos finalizados para a pessoa...',
-                               'BOT',
-                               'BOT',
-                               'primary-gradient',
-                               'SUCESSO',
-                               'success-gradient')
-                setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
-                percentilInicial = percentilInicial + percentilPorPessoa
+                    print(f'Processo Finalizado para: ({id_company}) {name_company}')
+                    includeLogData(nome_thread,
+                                   f'PROCESSOS - {pessoa["name"]}',
+                                   'Processos finalizados para a pessoa...',
+                                   'BOT',
+                                   'BOT',
+                                   'primary-gradient',
+                                   'SUCESSO',
+                                   'success-gradient')
+                    setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
+                    percentilInicial = percentilInicial + percentilPorPessoa
+                    break
+                 except WebDriverException as e:
+                    includeLogData(
+                        nome_thread,
+                        f'DRIVER CAIU - {pessoa["name"]}',
+                        f'Chrome/Driver caiu (tentativa {tentativa}/{max_tentativas_pessoa}). Recriando driver e relogando...',
+                        f'{pessoa.get("username", "BOT")}',
+                        'RPA',
+                        'danger-gradient',
+                        'ERRO',
+                        'danger-gradient'
+                    )
+                    try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    if tentativa < max_tentativas_pessoa:
+                        driver = IniciarDriver(nome_thread=nome_thread)
+                        logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
+                        if not logado:
+                            print(f"Nao conseguiu relogar apos driver cair -- pulando {pessoa['name']}.")
+                            break
+                        continue
+                    print(f"Pulando {pessoa['name']} apos {max_tentativas_pessoa} tentativas: {e}")
 
         '########## ZIPA OS ARQUIVOS PARA DISPONIBILIZAR LINK E REMOVE A PASTA ######'
         try:
