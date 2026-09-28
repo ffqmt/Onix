@@ -2272,116 +2272,159 @@ def exec_LOGIN_CERTIFICADO(driver, nome_thread):
             print("Erro de conexao na pagina de certificado.")
             return False
             
-        # Selecionar Tipo de Usuário "Contabilista" -- com retry. Um clique
-        # aqui pode falhar logo depois de um F5 JS challenge (ver
-        # abrir_url_sefaz acima): a referência do elemento fica fora de
-        # sincronia com a página (dropdown ainda animando, DOM re-renderizado
-        # pelo JSF) -- confirmado ao vivo em 01/09/2026, o clique na opção
-        # falhou com stacktrace sem mensagem útil e deixou o dropdown aberto
-        # sem nada selecionado. Re-localiza os elementos do zero a cada
-        # tentativa em vez de reusar referência potencialmente obsoleta, e
-        # fecha o dropdown (ESC) antes de tentar de novo.
-        tipo_usuario_ok = False
-        ultimo_erro_tipo_usuario = None
-        for tentativa_tipo in range(1, 4):
-            etapa = "início"
-            try:
-                # Seletor por SUFIXO, não por prefixo fixo -- o prefixo do
-                # form JSF (era "j_idt34:") muda entre cargas da página
-                # (confirmado ao vivo 01/09/2026: a mesma página, com o
-                # form certinho na tela, não tinha esse id -- é exatamente
-                # o que já tinha sido descoberto e corrigido no Zaya-bot,
-                # ver docs/sefaz-mt-validated-2026-08-24/login.py:38-42,
-                # nunca portado de volta pro Onix).
-                etapa = "aguardar select_label clicável"
-                select_label = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, "[id$=':selectTipoUsuario_label']"))
+        # Retry do login em si (além do retry de clique em "Tipo de Usuário"
+        # abaixo). A própria página de certificado da SEFAZ documenta, num
+        # comentário no HTML dela (visto ao vivo 14/09/2026), um sintoma de
+        # "tela travada": com múltiplos pods, o POST do login pode cair num
+        # pod diferente do que gerou a página, e a resposta volta pra essa
+        # mesma tela de identificação sem nenhuma mensagem de erro. A SEFAZ
+        # diz ter mitigado isso com view stateless (transient=true) -- mas
+        # reproduzido 3/3 vezes ao vivo hoje (14/09/2026), mesmo com o
+        # certificado selecionado certinho via UI Automation. Um reload
+        # completo da URL (novo GET, chance de cair em outro pod do load
+        # balancer) e nova tentativa resolve na prática. Não precisa reagir
+        # o watcher de certificado no reload: o Chrome não pede certificado
+        # de novo pra mesma origem dentro da mesma sessão/aba.
+        max_tentativas_login = 3
+        for tentativa_login in range(1, max_tentativas_login + 1):
+            if tentativa_login > 1:
+                print(
+                    f"Tela travada apos login certificado (tentativa {tentativa_login - 1}/"
+                    f"{max_tentativas_login}) -- recarregando pagina e tentando de novo..."
                 )
-                etapa = "clicar select_label"
-                click_element_cdp(driver, select_label)
-                sleep(random.uniform(0.5, 1.0))
+                if not abrir_url_sefaz(driver, url, nome_thread, tentativas=5, timeout=45):
+                    print("Erro ao recarregar pagina de login por certificado da SEFAZ.")
+                    continue
+                sleep(2.0)
+                if pagina_tem_erro_conexao(driver):
+                    print("Erro de conexao na pagina de certificado.")
+                    continue
 
-                etapa = "aguardar select_option clicável"
-                select_option = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, "[id$=':selectTipoUsuario_1']"))
-                )
-                etapa = "aguardar rect estável de select_option"
-                _aguardar_rect_estavel(driver, select_option)
-                etapa = "clicar select_option (CDP)"
+            # Selecionar Tipo de Usuário "Contabilista" -- com retry. Um clique
+            # aqui pode falhar logo depois de um F5 JS challenge (ver
+            # abrir_url_sefaz acima): a referência do elemento fica fora de
+            # sincronia com a página (dropdown ainda animando, DOM re-renderizado
+            # pelo JSF) -- confirmado ao vivo em 01/09/2026, o clique na opção
+            # falhou com stacktrace sem mensagem útil e deixou o dropdown aberto
+            # sem nada selecionado. Re-localiza os elementos do zero a cada
+            # tentativa em vez de reusar referência potencialmente obsoleta, e
+            # fecha o dropdown (ESC) antes de tentar de novo.
+            tipo_usuario_ok = False
+            ultimo_erro_tipo_usuario = None
+            for tentativa_tipo in range(1, 4):
+                etapa = "início"
                 try:
-                    click_element_cdp(driver, select_option)
-                except Exception:
-                    # Fallback pro clique nativo do Selenium -- se o CDP
-                    # ainda assim errar o alvo (painel do PrimeFaces
-                    # instável), o .click() do próprio elemento localizado
-                    # de novo agora (pós-espera de estabilidade) é uma
-                    # segunda chance independente do cálculo manual de
-                    # coordenadas.
-                    etapa = "clicar select_option (fallback nativo)"
-                    select_option.click()
-                sleep(random.uniform(1.0, 2.0))
-                tipo_usuario_ok = True
-                break
+                    # Seletor por SUFIXO, não por prefixo fixo -- o prefixo do
+                    # form JSF (era "j_idt34:") muda entre cargas da página
+                    # (confirmado ao vivo 01/09/2026: a mesma página, com o
+                    # form certinho na tela, não tinha esse id -- é exatamente
+                    # o que já tinha sido descoberto e corrigido no Zaya-bot,
+                    # ver docs/sefaz-mt-validated-2026-08-24/login.py:38-42,
+                    # nunca portado de volta pro Onix).
+                    etapa = "aguardar select_label clicável"
+                    select_label = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "[id$=':selectTipoUsuario_label']"))
+                    )
+                    etapa = "clicar select_label"
+                    click_element_cdp(driver, select_label)
+                    sleep(random.uniform(0.5, 1.0))
+
+                    etapa = "aguardar select_option clicável"
+                    select_option = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "[id$=':selectTipoUsuario_1']"))
+                    )
+                    etapa = "aguardar rect estável de select_option"
+                    _aguardar_rect_estavel(driver, select_option)
+                    etapa = "clicar select_option (CDP)"
+                    try:
+                        click_element_cdp(driver, select_option)
+                    except Exception:
+                        # Fallback pro clique nativo do Selenium -- se o CDP
+                        # ainda assim errar o alvo (painel do PrimeFaces
+                        # instável), o .click() do próprio elemento localizado
+                        # de novo agora (pós-espera de estabilidade) é uma
+                        # segunda chance independente do cálculo manual de
+                        # coordenadas.
+                        etapa = "clicar select_option (fallback nativo)"
+                        select_option.click()
+                    sleep(random.uniform(1.0, 2.0))
+                    tipo_usuario_ok = True
+                    break
+                except Exception as e:
+                    ultimo_erro_tipo_usuario = e
+                    # Diagnóstico -- as tentativas anteriores (retry simples,
+                    # depois espera de estabilidade + fallback nativo) falharam
+                    # de forma idêntica, sinal de que o problema pode não ser
+                    # no clique em si, e sim na página inteira (ex: ainda
+                    # navegando/recarregando por causa do F5 JS challenge
+                    # logo antes). etapa/tipo/url/readyState dizem onde
+                    # exatamente parou e se a página estava estável.
+                    try:
+                        url_atual = driver.current_url
+                    except Exception:
+                        url_atual = "?"
+                    try:
+                        ready_state = driver.execute_script("return document.readyState")
+                    except Exception:
+                        ready_state = "?"
+                    print(
+                        f"Tentativa {tentativa_tipo}/3 de selecionar Tipo de Usuário falhou na etapa "
+                        f"'{etapa}': {type(e).__name__}: {e!r} | url={url_atual} | readyState={ready_state}"
+                    )
+                    try:
+                        debug_dir = os.path.join(root_path, "debug_sefaz")
+                        os.makedirs(debug_dir, exist_ok=True)
+                        sufixo = f"tipo_usuario_falha_tentativa{tentativa_tipo}"
+                        driver.save_screenshot(os.path.join(debug_dir, f"{sufixo}.png"))
+                        with open(os.path.join(debug_dir, f"{sufixo}.html"), "w", encoding="utf-8") as f:
+                            f.write(driver.page_source)
+                    except Exception as e_diag:
+                        print(f"  (falha ao salvar diagnóstico: {e_diag})")
+                    try:
+                        ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+                    except Exception:
+                        pass
+                    sleep(1.5)
+
+            try:
+                if not tipo_usuario_ok:
+                    raise ultimo_erro_tipo_usuario or Exception("Não foi possível selecionar o Tipo de Usuário.")
+
+                # Clicar no botão Efetuar Login (que é um input do tipo submit)
+                btn_entrar = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//input[@type='submit' and contains(@class, 'btnPadrao')]"))
+                )
+                click_element_cdp(driver, btn_entrar)
+                print("Botao de login via certificado clicado. Aguardando redirecionamento...")
+                sleep(random.uniform(3.0, 5.0))
+
             except Exception as e:
-                ultimo_erro_tipo_usuario = e
-                # Diagnóstico -- as tentativas anteriores (retry simples,
-                # depois espera de estabilidade + fallback nativo) falharam
-                # de forma idêntica, sinal de que o problema pode não ser
-                # no clique em si, e sim na página inteira (ex: ainda
-                # navegando/recarregando por causa do F5 JS challenge
-                # logo antes). etapa/tipo/url/readyState dizem onde
-                # exatamente parou e se a página estava estável.
+                print(f"Erro ao interagir com campos de login certificado: {e}")
+
+            # Verificar se redirecionou para paginainicial.xhtml
+            try:
+                WebDriverWait(driver, 15).until(EC.url_contains('paginainicial.xhtml'))
+                logado = True
+            except Exception:
+                logado = False
                 try:
                     url_atual = driver.current_url
                 except Exception:
                     url_atual = "?"
-                try:
-                    ready_state = driver.execute_script("return document.readyState")
-                except Exception:
-                    ready_state = "?"
-                print(
-                    f"Tentativa {tentativa_tipo}/3 de selecionar Tipo de Usuário falhou na etapa "
-                    f"'{etapa}': {type(e).__name__}: {e!r} | url={url_atual} | readyState={ready_state}"
-                )
+                print(f"Nao redirecionou para a pagina inicial apos login por certificado. url={url_atual}")
                 try:
                     debug_dir = os.path.join(root_path, "debug_sefaz")
                     os.makedirs(debug_dir, exist_ok=True)
-                    sufixo = f"tipo_usuario_falha_tentativa{tentativa_tipo}"
-                    driver.save_screenshot(os.path.join(debug_dir, f"{sufixo}.png"))
-                    with open(os.path.join(debug_dir, f"{sufixo}.html"), "w", encoding="utf-8") as f:
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    driver.save_screenshot(os.path.join(debug_dir, f"login_cert_sem_redirect_{ts}.png"))
+                    with open(os.path.join(debug_dir, f"login_cert_sem_redirect_{ts}.html"), "w", encoding="utf-8") as f:
                         f.write(driver.page_source)
                 except Exception as e_diag:
-                    print(f"  (falha ao salvar diagnóstico: {e_diag})")
-                try:
-                    ActionChains(driver).send_keys(Keys.ESCAPE).perform()
-                except Exception:
-                    pass
-                sleep(1.5)
+                    print(f"  (falha ao salvar diagnostico: {e_diag})")
 
-        try:
-            if not tipo_usuario_ok:
-                raise ultimo_erro_tipo_usuario or Exception("Não foi possível selecionar o Tipo de Usuário.")
+            if logado:
+                break
 
-            # Clicar no botão Efetuar Login (que é um input do tipo submit)
-            btn_entrar = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//input[@type='submit' and contains(@class, 'btnPadrao')]"))
-            )
-            click_element_cdp(driver, btn_entrar)
-            print("Botao de login via certificado clicado. Aguardando redirecionamento...")
-            sleep(random.uniform(3.0, 5.0))
-
-        except Exception as e:
-            print(f"Erro ao interagir com campos de login certificado: {e}")
-            
-        # Verificar se redirecionou para paginainicial.xhtml
-        try:
-            pagina_inicial_logado = 'https://www.sefaz.mt.gov.br/acesso/pages/paginainicial.xhtml'
-            WebDriverWait(driver, 15).until(EC.url_contains('paginainicial.xhtml'))
-            logado = True
-        except Exception:
-            logado = False
-            print("Nao redirecionou para a pagina inicial apos login por certificado.")
-            
     finally:
         _stop_watcher = True
         
