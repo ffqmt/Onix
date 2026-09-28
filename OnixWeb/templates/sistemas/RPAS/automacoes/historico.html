@@ -1,0 +1,100 @@
+{% extends "layouts/onix-layout.html" %}
+
+{% block title %} Histórico de Execuções {% endblock %}
+
+{% block content %}
+<div class="main-container container-fluid">
+    <div class="row mt-8">
+        <div class="page-header">
+            <h1 class="page-title">Histórico de Execuções</h1>
+            <div>
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="index">Início</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Histórico</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Execuções de RPA</h3>
+                </div>
+                <div class="card-body pt-4">
+                    <div class="table-responsive">
+                        <table class="table table-bordered text-nowrap mb-0" style="border-radius:5px;">
+                            <thead class="border-top" style="background-color:#214A5B">
+                                <tr>
+                                    <th class="bg-transparent border-bottom-0 text-center">Órgão</th>
+                                    <th class="bg-transparent border-bottom-0 text-center">Descrição</th>
+                                    <th class="bg-transparent border-bottom-0 text-center">Usuário</th>
+                                    <th class="bg-transparent border-bottom-0 text-center">Data</th>
+                                    <th class="bg-transparent border-bottom-0 text-center" style="width: 15%;">Status</th>
+                                    <th class="bg-transparent border-bottom-0 text-center" style="width: 15%;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for execucao in Execucoes %}
+                                <tr class="border-bottom">
+                                    <td class="text-center">
+                                        <h6 class="mb-0 fs-14 fw-semibold">{{ execucao.orgao_exec or '—' }}</h6>
+                                    </td>
+                                    <td class="text-left">
+                                        <h6 class="mb-0 fs-14 fw-semibold">{{ execucao.nome_arquivo or execucao.thread_name }}</h6>
+                                    </td>
+                                    <td class="text-center">
+                                        <h6 class="mb-0 fs-14 fw-semibold">{{ execucao.user_exec or '—' }}</h6>
+                                    </td>
+                                    <td class="text-center">
+                                        <h6 class="mb-0 fs-14 fw-semibold">
+                                            {% if execucao.data_exec %}{{ execucao.data_exec.strftime("%d/%m/%Y %H:%M") }}{% else %}—{% endif %}
+                                        </h6>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="progress progress-sm">
+                                            <div class="progress-bar {% if execucao.percentil == 100 %}bg-success{%else%}bg-blue-1 progress-bar-striped progress-bar-animated{%endif%}" style="width: {{ execucao.percentil }}%;"></div>
+                                        </div>
+                                        <span class="fs-12">{{ execucao.percentil }}%</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if execucao.user_exec %}
+                                        <a href="/fetchlog-{{ execucao.thread_name }}" class="btn btn-sm ripple btn-info-gradient m-1" title="Ver log">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </a>
+                                        {% endif %}
+                                        {% if execucao.tem_zip %}
+                                        <form method="POST" action="/fetchlog-{{ execucao.thread_name }}" style="display:inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" name="baixarArquivo" class="btn btn-sm ripple btn-success-gradient m-1" title="Baixar arquivos">
+                                                <i class="fa-solid fa-download"></i>
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <button class="btn btn-sm ripple btn-secondary m-1" disabled title="Nenhum arquivo ainda">
+                                            <i class="fa-solid fa-download"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% if execucao.percentil != 100 and execucao.parametros_json %}
+                                        <form method="POST" action="/reenviar-execucao-{{ execucao.id }}" style="display:inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                            <button type="submit" class="btn btn-sm ripple btn-warning-gradient m-1" title="Reenviar (mesmos clientes/período)">
+                                                <i class="fa-solid fa-rotate-right"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center">Nenhuma execução encontrada.</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

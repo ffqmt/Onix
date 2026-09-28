@@ -240,6 +240,14 @@ class ThreadingCounter(db.Model):
     nome_arquivo = db.Column(db.String(64))
     data_exec = db.Column(db.DateTime())
     thread_finished = db.Column(db.Integer, default=0)
+    # JSON com os parâmetros originais da automação (pessoas selecionadas,
+    # tipo, competência, etc) -- sem isso não dá pra "Reenviar" uma
+    # execução travada, só refazer do zero pela tela (achado ao vivo
+    # 14/09/2026: 4 execuções travadas hoje e ninguém, nem o banco, sabia
+    # mais quais clientes/período eram). Nulo pra execuções antigas
+    # (criadas antes desta coluna existir) -- o botão "Reenviar" some
+    # nesse caso.
+    parametros_json = db.Column(db.Text)
     # RELACOES
     empresa = db.relationship('Empresas')
     usuario = db.relationship('Users')

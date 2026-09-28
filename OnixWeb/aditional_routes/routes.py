@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import os
 import hashlib
+import json
 import threading
 from datetime import datetime
 from time import sleep
@@ -43,6 +44,28 @@ def checkOnOff(x):
         return True
     else:
         return False
+
+
+def montarParametrosReenvio(rota, tipo_pessoa, tipo, listaPessoas, listaParametros,
+                            competenciaAno, competenciaMes, estado=None, id_cidade=None):
+    """Serializa tudo que uma automação (SEFAZ ou Prefeitura) precisa pra
+    ser disparada de novo -- guardado em ThreadingCounter.parametros_json
+    pro botão "Reenviar" no Histórico de Execuções. Antes disso existir,
+    uma execução que travasse cedo (ex: crash do chromedriver) perdia pra
+    sempre quais clientes/período tinham sido selecionados -- só existia
+    no corpo do POST da tela, nunca persistido em lugar nenhum (achado ao
+    vivo 14/09/2026, com 4 execuções travadas sem como saber o que eram)."""
+    return json.dumps({
+        'rota': rota,  # 'sefaz' | 'prefeitura'
+        'estado': estado,
+        'id_cidade': id_cidade,
+        'tipo_pessoa': tipo_pessoa,  # 'Fisica' | 'Juridica'
+        'tipo': tipo,  # 'padrao' | 'expecifico'
+        'listaPessoas': listaPessoas,
+        'listaParametros': listaParametros,
+        'competenciaAno': competenciaAno,
+        'competenciaMes': competenciaMes,
+    })
 
 
 @blueprint.app_context_processor
@@ -598,6 +621,10 @@ def autom_rpas_prefeituras(estado, id_cidade):
                 'nfe_taken': True,
                 'nfe_provided': True,
             }
+            newThreadLogid.parametros_json = montarParametrosReenvio(
+                'prefeitura', tipo_pessoa, tipo, listaPessoas, listaParametrosPadrao,
+                competenciaAno, competenciaMes, estado=estado, id_cidade=id_cidade)
+            db.session.commit()
             if tipo_pessoa == 'Fisica':
                 callExec = getattr(globals()[estado + '_' + id_cidade], 'MainExecution_Fisica_Padrao', None)
                 if callExec is not None and callable(callExec):
@@ -647,6 +674,10 @@ def autom_rpas_prefeituras(estado, id_cidade):
                 'nfe_taken': checkOnOff(request.form.get('nfe_taken')),
                 'nfe_provided': checkOnOff(request.form.get('nfe_provided')),
             }
+            newThreadLogid.parametros_json = montarParametrosReenvio(
+                'prefeitura', tipo_pessoa, tipo, listaPessoas, listaParametros,
+                competenciaAno, competenciaMes, estado=estado, id_cidade=id_cidade)
+            db.session.commit()
             if tipo_pessoa == 'Fisica':
                 callExec = getattr(globals()[estado + '_' + id_cidade], 'MainExecution_Fisica_Expecifico', None)
                 if callExec is not None and callable(callExec):
@@ -743,6 +774,113 @@ def fetchlog(logname):
             return render_template('errors/page-404.html'), 404
 
 
+@blueprint.route('/historico-execucoes', methods=['GET'])
+@login_required
+def historico_execucoes():
+    segment = get_segment(request)
+
+    execucoes = (ThreadingCounter.query
+                 .filter_by(id_empresa=current_user.empresa.id)
+                 .order_by(ThreadingCounter.id.desc())
+                 .limit(300)
+                 .all())
+
+    for execucao in execucoes:
+        caminho_zip = os.path.join(
+            get_root_path(), 'OnixWeb', 'rpautomation', 'transactionFiles',
+            f"{execucao.thread_name}.zip",
+        )
+        execucao.tem_zip = os.path.exists(caminho_zip)
+
+    return render_template('sistemas/RPAS/automacoes/historico.html',
+                           segment=segment,
+                           Execucoes=execucoes)
+
+
+@blueprint.route('/reenviar-execucao-<int:exec_id>', methods=['POST'])
+@login_required
+def reenviar_execucao(exec_id):
+    """Dispara de novo uma automação a partir dos parâmetros salvos em
+    ThreadingCounter.parametros_json (ver montarParametrosReenvio acima).
+    Cria uma execução NOVA (thread/id novos) em vez de tentar reanimar a
+    antiga -- mais simples e mesmo padrão das automações normais; a antiga
+    fica no histórico do jeito que travou, como registro. Pode ser clicado
+    de novo quantas vezes precisar se cair de novo (ex: crash pontual do
+    Chrome) -- cada clique é uma tentativa independente."""
+    origem = ThreadingCounter.query.get(exec_id)
+    if not origem or origem.id_empresa != current_user.empresa.id:
+        return render_template('errors/page-404.html'), 404
+
+    if not origem.parametros_json:
+        flash(["Essa execução é anterior ao registro automático de parâmetros -- não dá pra reenviar sozinho, refaça pela tela.", "OK", "", "mensagem"],
+              ["Atenção", "warning"])
+        return redirect(url_for('aditional_blueprint.historico_execucoes'))
+
+    params = json.loads(origem.parametros_json)
+    rota = params.get('rota')
+    estado = params.get('estado')
+    id_cidade = params.get('id_cidade')
+    tipo_pessoa = params.get('tipo_pessoa')
+    tipo = params.get('tipo')
+    listaPessoas = params.get('listaPessoas')
+    listaParametros = params.get('listaParametros')
+    competenciaAno = params.get('competenciaAno')
+    competenciaMes = params.get('competenciaMes')
+
+    codigo_unico = hashlib.sha256(os.urandom(16)).hexdigest()
+    newThreadLogid = ThreadingCounter()
+    newThreadLogid.thread_name = f"{codigo_unico}"
+    newThreadLogid.orgao_exec = origem.orgao_exec
+    newThreadLogid.tipo_exec = 'AUTOMACAO'
+    newThreadLogid.user_exec = current_user.username
+    newThreadLogid.id_empresa = current_user.empresa.id
+    newThreadLogid.data_exec = datetime.now()
+    newThreadLogid.nome_arquivo = current_user.empresa.nome.split()[0].upper()
+    newThreadLogid.parametros_json = origem.parametros_json
+
+    threadDataLog = logData()
+    threadDataLog.thread_name = f"{codigo_unico}"
+    threadDataLog.log_title = 'Iniciando... (reenvio)'
+    threadDataLog.log_desc = f'RPA reenviado a partir da execução #{origem.id}.'
+    threadDataLog.cnpj_cpf = 'BOT'
+    threadDataLog.data = datetime.now()
+    threadDataLog.tipo = 'BOT'
+    threadDataLog.bg_tipo = 'primary-gradient'
+    threadDataLog.status = 'SUCESSO'
+    threadDataLog.bg_status = 'success-gradient'
+
+    db.session.add(newThreadLogid)
+    db.session.add(threadDataLog)
+    db.session.commit()
+
+    nome_funcao = f'MainExecution_{tipo_pessoa}_{"Padrao" if tipo == "padrao" else "Expecifico"}'
+    modulo = None
+    if rota == 'sefaz' and estado:
+        modulo = globals().get(estado)
+    elif rota == 'prefeitura' and estado and id_cidade:
+        modulo = globals().get(f'{estado}_{id_cidade}')
+
+    callExec = getattr(modulo, nome_funcao, None) if modulo is not None else None
+
+    if callExec is not None and callable(callExec):
+        if rota == 'sefaz' and tipo == 'padrao':
+            # MainExecution_*_Padrao da SEFAZ nao recebe listaParametros
+            # (ver rota /autom-rpas-sefaz-* acima, mesma assinatura).
+            args = (listaPessoas, current_user.id_empresa, competenciaAno, competenciaMes)
+        else:
+            args = (listaPessoas, listaParametros, current_user.id_empresa, competenciaAno, competenciaMes)
+
+        t = threading.Thread(target=callExec, name=f"{codigo_unico}", args=args)
+        t.start()
+
+        flash([f"Reenvio iniciado.", "OK", "", "mensagem"], [f"Sucesso", "success"])
+    else:
+        flash([f"Não consegui localizar a automação original ({rota}/{estado or ''}{('/' + id_cidade) if id_cidade else ''}) para reenviar.", "OK", "", "mensagem"],
+              [f"Atenção", "error"])
+
+    return redirect(url_for('aditional_blueprint.fetchlog', logname=codigo_unico))
+
+
 @blueprint.route('/autom-rpas-sefaz-<estado>', methods=['GET', 'POST'])
 @login_required
 def autom_rpas_sefaz(estado):
@@ -788,6 +926,10 @@ def autom_rpas_sefaz(estado):
         tipo = request.form.get('tipo')
         listaPessoas = list(request.form.get('selecao').split(','))
         if tipo == 'padrao':  # PADRAO
+            newThreadLogid.parametros_json = montarParametrosReenvio(
+                'sefaz', tipo_pessoa, tipo, listaPessoas, None,
+                competenciaAno, competenciaMes, estado=estado)
+            db.session.commit()
             if tipo_pessoa == 'Fisica':
                 callExec = getattr(globals()[estado], 'MainExecution_Fisica_Padrao', None)
                 if callExec is not None and callable(callExec):
@@ -832,6 +974,10 @@ def autom_rpas_sefaz(estado):
                 'cte_tomador': checkOnOff(request.form.get('cte_tomador')),
                 'nfce_emitida': checkOnOff(request.form.get('nfce_emitida')),
             }
+            newThreadLogid.parametros_json = montarParametrosReenvio(
+                'sefaz', tipo_pessoa, tipo, listaPessoas, listaParametros,
+                competenciaAno, competenciaMes, estado=estado)
+            db.session.commit()
             if tipo_pessoa == 'Fisica':
                 callExec = getattr(globals()[estado], 'MainExecution_Fisica_Expecifico', None)
                 if callExec is not None and callable(callExec):

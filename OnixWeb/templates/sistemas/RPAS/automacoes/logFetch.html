@@ -23,6 +23,12 @@
                             <div class="row mt-2">
                                 <span> &bull; aguarde a conclusão para baixar os arquivos.</span>
                             </div>
+                            {% if Thread.parametros_json %}
+                            <form method="POST" action="/reenviar-execucao-{{ Thread.id }}" class="mt-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn ripple btn-warning-gradient w-md" title="Reenviar com os mesmos clientes/período"><b>Reenviar</b></button>
+                            </form>
+                            {% endif %}
                         {%else%}
                         <form method="POST">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# CSRF TOKEN #}
