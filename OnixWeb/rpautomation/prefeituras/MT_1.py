@@ -1611,6 +1611,25 @@ def _buscar_e_exportar_notas(driver, nome_thread, name_company, cnpj_cpf, execMe
         campo_fim.send_keys(data_fim)
         campo_fim.send_keys(Keys.TAB)
 
+        # Filtro "Situação" (p:selectCheckboxMenu) -- por padrão só "Normal"
+        # vem marcado (checkbox real com id "...smcSituacao:0"), as outras 5
+        # opções (Cancelada, Substituída, Extraviada, Cancelamento
+        # Solicitado, Rejeitada) vêm desmarcadas. Sem marcar todas, a busca
+        # nunca retorna notas canceladas/rejeitadas/etc -- pedido explícito
+        # do usuário pra sempre trazer as 6. Confirmado ao vivo 27/09/2026:
+        # clicar via JS no <label for="...smcSituacao:N"> (não no <input>
+        # em si, que fica dentro de um wrapper ui-helper-hidden) marca o
+        # checkbox de verdade -- os índices 1..5 correspondem, nessa ordem,
+        # às 5 situações além de Normal (índice 0, já marcado por padrão).
+        try:
+            for indice in range(1, 6):
+                label_situacao = driver.find_element(
+                    By.CSS_SELECTOR, f'label[for$=":smcSituacao:{indice}"]'
+                )
+                driver.execute_script("arguments[0].click();", label_situacao)
+        except NoSuchElementException:
+            print(f"Filtro de Situação não encontrado ({tipo_log}) -- seguindo só com o default (Normal).")
+
         try:
             botao_pesquisar = driver.find_element(By.CSS_SELECTOR, 'button[id$=":cbPesquisar"]')
         except NoSuchElementException:
@@ -1718,6 +1737,27 @@ def exec_XML_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
         nome_arquivo_pdf=None,
         nome_arquivo_xml="NFS-e - Tomados.xml",
         tipo_log="TOMADOS",
+    )
+
+
+def exec_PDF_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+    """Mesmo bug de NameError documentado em exec_XML_TOMADOS/exec_XML_PRESTADOS
+    acima (função nunca definida, só chamada pelos MainExecution_*), só que
+    ninguém tinha achado esse ainda -- confirmado ao vivo 27/09/2026 (a
+    própria chamada real de MainExecution_Fisica_Padrao quebrava com
+    AttributeError assim que 'provided' vinha True e chegava a vez do PDF,
+    depois de TOMADOS já ter rodado -- é o motivo mais provável de execuções
+    de Prefeitura travarem silenciosamente em 5% sem nenhum log de erro:
+    a thread morre sem exceção tratada). Mesmo padrão de exec_PDF_TOMADOS,
+    só que na tela de Prestados."""
+    if not _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
+        return
+    _buscar_e_exportar_notas(
+        driver, nome_thread, name_company, cnpj_cpf, execMes, execAno, pastaArquivos,
+        url_lista=URL_NOTAS_PRESTADAS_PVA,
+        nome_arquivo_pdf="NFS-e - Prestados.pdf",
+        nome_arquivo_xml=None,
+        tipo_log="PRESTADOS",
     )
 
 
@@ -2538,23 +2578,6 @@ def exec_NFSE_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, exec
     )
 
 
-def _nao_migrado(nome_thread, name_company, cnpj_cpf, tipo_log, url_conhecida, o_que_falta):
-    """GUIA ISSQN e Declaração (ENC_TOMADOS/ENC_PRESTADOS) foram
-    localizadas no portal novo em 01/09/2026 mas não terminadas -- ver
-    docs/rpa-refactor-plan.md (mesmo mapeamento vale pro projeto Zaya, que
-    tem os ids reais encontrados até agora). Falha alto e claro em vez de
-    tentar contra a URL antiga (que não existe mais) ou adivinhar um fluxo
-    não validado."""
-    print(f"{tipo_log} - {name_company}: portal novo ainda não migrado ({o_que_falta}). Tela: {url_conhecida}")
-    includeLogData(nome_thread,
-                   f'{tipo_log} - {name_company}',
-                   f'Não migrado pro portal novo ainda -- {o_que_falta}. Tela conhecida: {url_conhecida}.',
-                   cnpj_cpf,
-                   tipo_log,
-                   'info-gradient',
-                   'ATENÇÃO',
-                   'warning-gradient')
-
 
 URL_GUIA_EMITIR_PVA = "https://iss.primaveradoleste.mt.gov.br/issweb/paginas/admin/guia/emitir"
 _MESES_GUIA_ISSQN = [
@@ -2736,34 +2759,157 @@ def exec_GUIAISSQN(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, 
         )
 
 
+URL_DECLARACAO_TOMADOR_PVA = "https://iss.primaveradoleste.mt.gov.br/issweb/paginas/admin/declaracoes/tomador/movimentos"
+
+_NOMES_MES_DECLARACAO_PVA = {
+    1: "Janeiro", 2: "Fevereiro", 3: "Mar\u00e7o", 4: "Abril", 5: "Maio", 6: "Junho",
+    7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+}
+
+
 def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
-    _nao_migrado(
-        nome_thread, name_company, cnpj_cpf, 'ENCERRAMENTO TOMADOS',
-        url_conhecida='https://iss.primaveradoleste.mt.gov.br/issweb/paginas/admin/declaracoes/tomador/movimentos',
-        o_que_falta=(
-            "fluxo de v\u00e1rias etapas (bot\u00e3o 'Novo Movimento' "
-            "frmActions:cbAbrir \u2192 lan\u00e7ar notas ou declarar sem movimento \u2192 "
-            "fechar) n\u00e3o foi percorrido at\u00e9 o fim na inspe\u00e7\u00e3o ao vivo"
-        ),
-    )
+    """Mapeado ao vivo em 27-28/09/2026 (autorizado pelo usu\u00e1rio, criou 1
+    movimento de teste real pra INTEGRA CONSULTORIA). Fluxo confirmado:
+    lista (busca por Ano, filtra a linha certa pelo nome do m\u00eas no texto
+    da linha -- o select de M\u00eas da busca tem id inst\u00e1vel tipo "j_idtNNN",
+    ent\u00e3o evita depender dele) -> se n\u00e3o existir linha pro m\u00eas, "Novo
+    Movimento" (Tipo Escritura j\u00e1 vem "Normal" por padr\u00e3o -- n\u00e3o mexe;
+    Ano/M\u00eas vem preenchidos com o m\u00eas/ano ATUAL do sistema, s\u00f3 ajusta se
+    for diferente da compet\u00eancia pedida) -> "Salvar" -> confirma\u00e7\u00e3o "Sim"
+    -> "Cadastro efetuado com sucesso!" -> seleciona a linha -> "Declarar"
+    -> "Importar Notas" -> tela "Aceite" -> "Aceitar todas".
+
+    N\u00c3O clica em "Fechar Movimento" (id frmActions:cbFechar, confirmado
+    que existe e fica vis\u00edvel na barra de a\u00e7\u00f5es da linha selecionada) --
+    esse passo final \u00e9 uma declara\u00e7\u00e3o fiscal real pra prefeitura e nunca
+    foi testado ao vivo (o usu\u00e1rio pediu explicitamente pra n\u00e3o fechar
+    durante a investiga\u00e7\u00e3o). O movimento fica ABERTO com as notas j\u00e1
+    importadas -- fechar continua sendo um passo manual por enquanto, at\u00e9
+    algu\u00e9m validar esse clique especificamente ao vivo.
+    """
+    if not _selecionar_contribuinte(driver, nome_thread, cnpj_cpf):
+        return
+
+    mes_num = int(execMes)
+    ano_num = int(execAno)
+    nome_mes = _NOMES_MES_DECLARACAO_PVA.get(mes_num)
+    if not nome_mes:
+        print(f"ENCERRAMENTO TOMADOS - {name_company}: mes invalido ({execMes}).")
+        return
+
+    def _linha_do_mes():
+        for tr in driver.find_elements(By.CSS_SELECTOR, "table tbody tr"):
+            if nome_mes in tr.text:
+                return tr
+        return None
+
+    try:
+        driver.get(URL_DECLARACAO_TOMADOR_PVA)
+        campo_ano = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, 'input[id$=":itAno"]'))
+        )
+        campo_ano.clear()
+        campo_ano.send_keys(str(ano_num))
+        driver.find_element(By.XPATH, "//button[contains(., 'Pesquisar')]").click()
+        sleep(2)
+
+        linha = _linha_do_mes()
+
+        if linha is None:
+            print(f"ENCERRAMENTO TOMADOS - {name_company}: nenhum movimento {nome_mes}/{ano_num} -- criando.")
+            driver.find_element(By.XPATH, "//button[contains(., 'Novo Movimento')]").click()
+            sleep(2)
+
+            campo_ano_form = driver.find_element(By.CSS_SELECTOR, 'input[id$=":itAno"]')
+            if campo_ano_form.get_attribute("value") != str(ano_num):
+                campo_ano_form.clear()
+                campo_ano_form.send_keys(str(ano_num))
+
+            select_mes = driver.find_element(By.CSS_SELECTOR, 'select[id$=":somMes_input"]')
+            if select_mes.get_attribute("value") != str(mes_num):
+                driver.execute_script(
+                    """
+                    var sel = arguments[0], val = arguments[1];
+                    sel.value = val;
+                    sel.dispatchEvent(new Event('change', {bubbles: true}));
+                    """,
+                    select_mes, str(mes_num),
+                )
+                sleep(0.5)
+
+            driver.find_element(By.XPATH, "//button[contains(., 'Salvar')]").click()
+            sleep(1.5)
+            driver.find_element(By.XPATH, "//button[contains(., 'Sim')]").click()
+            sleep(2)
+
+            driver.get(URL_DECLARACAO_TOMADOR_PVA)
+            campo_ano = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'input[id$=":itAno"]'))
+            )
+            campo_ano.clear()
+            campo_ano.send_keys(str(ano_num))
+            driver.find_element(By.XPATH, "//button[contains(., 'Pesquisar')]").click()
+            sleep(2)
+            linha = _linha_do_mes()
+
+        if linha is None:
+            raise Exception(f"Movimento {nome_mes}/{ano_num} nao encontrado mesmo apos tentar criar.")
+
+        if linha.text.strip().split()[-1] == "Sim":
+            print(f"ENCERRAMENTO TOMADOS - {name_company}: movimento {nome_mes}/{ano_num} ja fechado, nada a fazer.")
+            includeLogData(
+                nome_thread, f'ENCERRAMENTO TOMADOS - {name_company}',
+                f'Movimento {nome_mes}/{ano_num} j\u00e1 estava fechado.',
+                cnpj_cpf, 'ENCERRAMENTO TOMADOS', 'info-gradient', 'SUCESSO', 'success-gradient',
+            )
+            return
+
+        linha.click()
+        sleep(1.5)
+
+        driver.find_element(By.ID, "frmActions:bLancar").click()
+        sleep(2)
+        driver.find_element(By.ID, "frmActions:bImportarNotas").click()
+        sleep(2)
+
+        try:
+            driver.find_element(By.ID, "frmActions:btnTodas").click()
+            sleep(2)
+            includeLogData(
+                nome_thread, f'ENCERRAMENTO TOMADOS - {name_company}',
+                f'Notas importadas pro movimento {nome_mes}/{ano_num}. Movimento continua ABERTO -- '
+                f'fechamento ainda \u00e9 manual (n\u00e3o validado ao vivo).',
+                cnpj_cpf, 'ENCERRAMENTO TOMADOS', 'info-gradient', 'SUCESSO', 'success-gradient',
+            )
+        except NoSuchElementException:
+            print(f"ENCERRAMENTO TOMADOS - {name_company}: 'Aceitar todas' n\u00e3o encontrado -- sem notas pendentes?")
+            includeLogData(
+                nome_thread, f'ENCERRAMENTO TOMADOS - {name_company}',
+                'Nenhuma nota pendente de importa\u00e7\u00e3o encontrada.',
+                cnpj_cpf, 'ENCERRAMENTO TOMADOS', 'info-gradient', 'ATEN\u00c7\u00c3O', 'warning-gradient',
+            )
+
+    except Exception as e:
+        print(f"Erro ENCERRAMENTO TOMADOS - {name_company}: {e}")
+        _salvar_diagnostico(driver, f"enc_tomados_erro_{cnpj_cpf}")
+        includeLogData(
+            nome_thread, f'ENCERRAMENTO TOMADOS - {name_company}', f'Erro: {e}',
+            cnpj_cpf, 'ENCERRAMENTO TOMADOS', 'info-gradient', 'ERRO', 'danger-gradient',
+        )
 
 
 def exec_ENC_PRESTADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
-    # Na tela de sele\u00e7\u00e3o de contribuinte, a coluna "Dec Prest?" veio "N\u00e3o
-    # Declara" pra INTEGRA CONSULTORIA (a empresa usada na inspe\u00e7\u00e3o) -- sinal
-    # (n\u00e3o confirmado pra outras empresas/regimes) de que o portal novo pode
-    # nem ter um equivalente de "encerramento prestados" -- quem emite NFS-e
-    # como prestador talvez n\u00e3o precise de declara\u00e7\u00e3o de fechamento
-    # separada. Falhando alto e claro em vez de assumir isso silenciosamente.
-    _nao_migrado(
-        nome_thread, name_company, cnpj_cpf, 'ENCERRAMENTO PRESTADOS',
-        url_conhecida='https://iss.primaveradoleste.mt.gov.br/issweb/paginas/admin/declaracoes/tomador/movimentos',
-        o_que_falta=(
-            "n\u00e3o existe 'Declara\u00e7\u00e3o Prestador' vis\u00edvel no menu do portal novo "
-            "(s\u00f3 'Declara\u00e7\u00e3o Tomador') -- precisa confirmar se prestador "
-            "realmente n\u00e3o precisa de fechamento separado antes de decidir o "
-            "que portar aqui"
-        ),
+    # Confirmado ao vivo em 27-28/09/2026 (n\u00e3o s\u00f3 suspeitado mais):
+    # o menu "Declara\u00e7\u00e3o" do portal novo s\u00f3 tem "Declara\u00e7\u00e3o Tomador" --
+    # n\u00e3o existe "Declara\u00e7\u00e3o Prestador". Quem emite NFS-e como prestador
+    # n\u00e3o tem um fechamento de movimento separado nesse portal (a pr\u00f3pria
+    # emiss\u00e3o da nota j\u00e1 \u00e9 o registro fiscal do lado prestador). Sem
+    # implementa\u00e7\u00e3o porque n\u00e3o h\u00e1 o que implementar aqui.
+    print(f"ENCERRAMENTO PRESTADOS - {name_company}: n\u00e3o existe 'Declara\u00e7\u00e3o Prestador' no portal (confirmado ao vivo) -- nada a fazer.")
+    includeLogData(
+        nome_thread, f'ENCERRAMENTO PRESTADOS - {name_company}',
+        'Portal n\u00e3o tem Declara\u00e7\u00e3o Prestador -- s\u00f3 Tomador. Nada a fazer aqui.',
+        cnpj_cpf, 'ENCERRAMENTO PRESTADOS', 'info-gradient', 'ATEN\u00c7\u00c3O', 'warning-gradient',
     )
 
 
