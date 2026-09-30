@@ -1778,6 +1778,32 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
             print('Iniciando envio dos arquivos do agendamento.')
             sleep(5)
 
+        except Exception as e:
+            # Achado ao vivo em 30/09/2026: esse try nunca teve um except --
+            # se o Chrome/chromedriver caisse no meio do loop de pessoas
+            # (WebDriverException "invalid session id", ja visto em
+            # producao no agendamento de 01/07/2026), a excecao propagava
+            # direto pra fora da thread (so o finally rodava), matando a
+            # execucao em silencio e deixando o status preso em
+            # "Em Execucao" pra sempre -- o agendamento nunca mais disparava
+            # de novo do jeito esperado. Agora pelo menos loga o erro e
+            # devolve o status pra um estado nao-travado, mesmo que essa
+            # rodada especifica tenha ficado incompleta.
+            print(f"Erro fatal no Agendamento {idAgendamento}: {e}")
+            try:
+                includeLogData(nome_thread,
+                               'AGENDAMENTO - ERRO FATAL',
+                               f'Execucao interrompida por erro: {e}. Pessoas processadas ate aqui ficam registradas, o restante fica pra proxima execucao.',
+                               'BOT', 'RPA', 'primary-gradient', 'ERRO', 'danger-gradient')
+            except Exception:
+                pass
+            try:
+                dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
+                dadosAgendamento.status = 'Aguardando Próxima Execução'
+                db.session.commit()
+            except Exception as e_status:
+                print(f"Nao consegui atualizar status do agendamento apos erro: {e_status}")
+
         finally:
             if driver:
                 try:

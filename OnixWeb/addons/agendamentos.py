@@ -32,6 +32,32 @@ scheduler.add_job(
 )
 
 
+def _rodarAgendamentoProtegido(agendamentoID, callExec, args):
+    """Roda a MainExecution_Agendamentos protegida por um try/except --
+    achado ao vivo em 30/09/2026: nem a versão SEFAZ nem a versão
+    Prefeitura tinham um except ao redor do laço de pessoas. Se o
+    Chrome/chromedriver caísse no meio (WebDriverException), a exceção
+    matava a thread em silêncio e o status ficava preso em 'Em Execução'
+    pra sempre -- foi exatamente o que aconteceu no agendamento de
+    Prefeitura de 01/07/2026, que não disparou mais desde então. Isso não
+    evita o crash em si, mas garante que o status sempre saia de
+    'Em Execução' (pra não travar a visibilidade nem confundir a próxima
+    tentativa) e que o erro fique registrado."""
+    try:
+        callExec(*args)
+    except Exception as e:
+        print(f"Erro fatal no Agendamento {agendamentoID}: {e}")
+        with app.app_context():
+            try:
+                agendamento = AgendamentosRPA.query.filter_by(id=agendamentoID).first()
+                if agendamento:
+                    agendamento.status = ('Aguardando Próxima Execução' if agendamento.in_repeat
+                                          else 'Execução Finalizada')
+                    db.session.commit()
+            except Exception as e_status:
+                print(f"Não consegui atualizar status do agendamento {agendamentoID} após erro: {e_status}")
+
+
 def chamaExec(agendamentoID):
     with app.app_context():
         agendamento = AgendamentosRPA.query.filter_by(id=agendamentoID).first()
@@ -66,9 +92,9 @@ def chamaExec(agendamentoID):
             estado = UF.query.filter_by(id=idCidUF).first()
             callExec = getattr(globals()[estado.uf], 'MainExecution_Agendamentos', None)
             if callExec is not None and callable(callExec):
-                t = threading.Thread(target=callExec,
+                t = threading.Thread(target=_rodarAgendamentoProtegido,
                                      name=f"{codigo_unico}",
-                                     args=(idAgendamento, estado.id)
+                                     args=(agendamentoID, callExec, (idAgendamento, estado.id))
                                      )
                 t.start()
 
@@ -90,9 +116,9 @@ def chamaExec(agendamentoID):
                     'nfe_provided': 'nfe_prestado' in processos_inclusos
                 }
 
-                t = threading.Thread(target=callExec,
+                t = threading.Thread(target=_rodarAgendamentoProtegido,
                                      name=f"{codigo_unico}",
-                                     args=(idAgendamento, listaParametros, idCidUF)  # Ordem correta dos argumentos
+                                     args=(agendamentoID, callExec, (idAgendamento, listaParametros, idCidUF))
                                      )
                 t.start()
 
