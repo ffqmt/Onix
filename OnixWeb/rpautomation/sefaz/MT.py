@@ -22,6 +22,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 import os
+import json
 import zipfile
 import subprocess
 import uuid
@@ -198,7 +199,11 @@ def diagnosticar_estado_pagina(driver, nome_thread, contexto) -> None:
         print(f"Erro no diagnostico da pagina: {e}")
 
 
-def abrir_url_sefaz(driver, url, nome_thread='BOT', tentativas=5, timeout=45) -> bool:
+def abrir_url_sefaz(driver, url, nome_thread='BOT', tentativas=3, timeout=45) -> bool:
+    # Reduzido de 5 para 3 tentativas em 01/10/2026 -- o backoff crescente
+    # (ate ~90s por tentativa) fazia uma pagina que ja estava morta gastar
+    # ~4min so tentando de novo antes de cair pro fallback de aba nova.
+    # So afeta o caminho de falha (sucesso continua na 1a tentativa igual).
     print(f"Abrindo URL SEFAZ: {url} (tentativa/timeout: {tentativas}/{timeout})")
     import random
     for tent in range(1, tentativas + 1):
@@ -1495,6 +1500,83 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
             print(f"Erro ao restaurar rede: {e}")
 
 
+def _arquivo_resume_agendamento(idAgendamento):
+    return os.path.join(root_path, f'_resume_agendamento_{idAgendamento}.json')
+
+
+def _carregar_empresas_ja_feitas(idAgendamento):
+    """Le o progresso salvo de hoje para esse agendamento (se existir e for de hoje).
+
+    Achado em 01/10/2026: sem isso, toda queda (crash, internet, etc.) faz o
+    lote reprocessar as 512 empresas do zero -- com a SEFAZ instavel, isso
+    faz o agendamento nunca chegar ao fim. Agora cada empresa concluida com
+    sucesso fica marcada aqui, e a proxima tentativa pula direto pro que
+    falta.
+    """
+    caminho = _arquivo_resume_agendamento(idAgendamento)
+    try:
+        with open(caminho, 'r', encoding='utf-8') as f:
+            dados_resume = json.load(f)
+        if dados_resume.get('data') == datetime.now().strftime('%Y-%m-%d'):
+            return set(dados_resume.get('done_ids', []))
+    except Exception:
+        pass
+    return set()
+
+
+def _marcar_empresa_feita_resume(idAgendamento, id_company, done_ids_cache):
+    done_ids_cache.add(id_company)
+    caminho = _arquivo_resume_agendamento(idAgendamento)
+    try:
+        with open(caminho, 'w', encoding='utf-8') as f:
+            json.dump({'data': datetime.now().strftime('%Y-%m-%d'),
+                       'done_ids': sorted(done_ids_cache)}, f)
+    except Exception as e:
+        print(f"Nao consegui salvar progresso de resume: {e}")
+
+
+def _limpar_resume_agendamento(idAgendamento):
+    caminho = _arquivo_resume_agendamento(idAgendamento)
+    try:
+        if os.path.exists(caminho):
+            os.remove(caminho)
+    except Exception:
+        pass
+
+
+def _registrar_falha_parcial_documento(idAgendamento, id_company, name_company, tipo_documento):
+    """Registra que um documento especifico de uma empresa nao foi conseguido
+    mesmo apos esgotar os retries (ex: CTe Emissor deu timeout de download).
+
+    A empresa ainda conta como "feita" pro resume geral (os outros documentos
+    dela podem ter dado certo), mas essa lista permite no futuro reprocessar
+    só o que faltou, em vez de reprocessar a empresa inteira ou simplesmente
+    perder esse dado.
+    """
+    if idAgendamento is None or id_company is None:
+        return
+    caminho = os.path.join(root_path, f'_falhas_parciais_agendamento_{idAgendamento}.json')
+    registro = {'data': datetime.now().strftime('%Y-%m-%d'), 'falhas': []}
+    try:
+        with open(caminho, 'r', encoding='utf-8') as f:
+            existente = json.load(f)
+        if existente.get('data') == registro['data']:
+            registro = existente
+    except Exception:
+        pass
+    registro['falhas'].append({
+        'id_company': id_company,
+        'name_company': name_company,
+        'tipo_documento': tipo_documento,
+        'hora': datetime.now().strftime('%H:%M:%S'),
+    })
+    try:
+        with open(caminho, 'w', encoding='utf-8') as f:
+            json.dump(registro, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"Nao consegui salvar falha parcial: {e}")
+
+
 def MainExecution_Agendamentos(idAgendamento, idEstado):
     with app.app_context():
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
@@ -1557,6 +1639,13 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
             dados = dadosPessoasPF(listaPessoas, EmpresaExec)
             desc = 'pessoa física'
 
+        total_empresas_agendamento = len(dados)
+        empresas_ja_feitas = _carregar_empresas_ja_feitas(idAgendamento)
+        if empresas_ja_feitas:
+            dados = [p for p in dados if p['id'] not in empresas_ja_feitas]
+            print(f"Retomando Agendamento {idAgendamento}: {len(empresas_ja_feitas)} ja feitas hoje, "
+                  f"{len(dados)} restantes de {total_empresas_agendamento}.")
+
         listaLen = len(listaPessoas)
         percentilProcesso = 80
         percentilPorPessoa = int(percentilProcesso / listaLen) if listaLen else 0
@@ -1574,8 +1663,8 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
             logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
             if logado:
-                counter = 0
-                print(f'Total empresas: {len(dados)} - Agendamento {dadosAgendamento.id} - Thread: {nome_thread}')
+                counter = len(empresas_ja_feitas)
+                print(f'Total empresas: {total_empresas_agendamento} - Agendamento {dadosAgendamento.id} - Thread: {nome_thread}')
                 for pessoa in dados:
 
                     includeLogData(nome_thread,
@@ -1661,7 +1750,9 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
                                          idDoc=username if dadosAgendamento.tipo_pessoa_agendamento == 'PJ' else ie,
                                          execMes=mesExec,
                                          execAno=anoExec,
-                                         pastaArquivos=pastaArquivos)
+                                         pastaArquivos=pastaArquivos,
+                                         idAgendamento=idAgendamento,
+                                         id_company=id_company)
 
                     if listaParametros['cte_tomador'] and 'sefaz_cte_tomado' in ParametrosAgendamento:
                         exec_CTE_TOMADOR(driver=driver,
@@ -1672,7 +1763,9 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
                                          idDoc=username,
                                          execMes=mesExec,
                                          execAno=anoExec,
-                                         pastaArquivos=pastaArquivos)
+                                         pastaArquivos=pastaArquivos,
+                                         idAgendamento=idAgendamento,
+                                         id_company=id_company)
 
                     if listaParametros['nfce_emitida'] and 'sefaz_nfce' in ParametrosAgendamento:
                          exec_NFCE(driver=driver,
@@ -1698,8 +1791,9 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
                     percentilInicial = percentilInicial + percentilPorPessoa
 
                     counter += 1
+                    _marcar_empresa_feita_resume(idAgendamento, id_company, empresas_ja_feitas)
                     print(
-                        f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
+                        f'Finalizado: {counter}/{total_empresas_agendamento} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
 
                     '######### ZIPA PASTA ESPECIFICA E ENVIA #############'
 
@@ -1772,6 +1866,7 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
             else:
                 dadosAgendamento.status = 'Execução Finalizada'
             db.session.commit()
+            _limpar_resume_agendamento(idAgendamento)
 
             print(f'Finalizou Execução do item agendado. (ID:{dadosAgendamento.id})')
             sleep(5)
@@ -2287,7 +2382,7 @@ def exec_LOGIN_CERTIFICADO(driver, nome_thread):
     import random
     
     try:
-        if not abrir_url_sefaz(driver, url, nome_thread, tentativas=5, timeout=45):
+        if not abrir_url_sefaz(driver, url, nome_thread, tentativas=3, timeout=45):
             print("Erro ao carregar pagina de login por certificado da SEFAZ.")
             return False
             
@@ -2318,7 +2413,7 @@ def exec_LOGIN_CERTIFICADO(driver, nome_thread):
                     f"Tela travada apos login certificado (tentativa {tentativa_login - 1}/"
                     f"{max_tentativas_login}) -- recarregando pagina e tentando de novo..."
                 )
-                if not abrir_url_sefaz(driver, url, nome_thread, tentativas=5, timeout=45):
+                if not abrir_url_sefaz(driver, url, nome_thread, tentativas=3, timeout=45):
                     print("Erro ao recarregar pagina de login por certificado da SEFAZ.")
                     continue
                 sleep(2.0)
@@ -3295,7 +3390,7 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
             pass
 
 
-def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos, idAgendamento=None, id_company=None):
     actions = ActionChains(driver)
     temregistrosCTE = False
     if not temregistrosCTE:
@@ -3385,6 +3480,12 @@ def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
             try:
                 continua_carregando = True
                 tempo_carregando = 0
+                # Mesmo achado de 01/10/2026: sem isso, pagina presa em
+                # "carregando" pra sempre faz esse while recarregar a
+                # consulta e esperar mais 120s, de novo, pra sempre.
+                # Maximo 3 recargas (~6min de espera total) antes de
+                # desistir e seguir em frente.
+                _recargas_totais = 0
                 while continua_carregando:
                     carregando = WebDriverWait(driver, 2).until(
                         EC.presence_of_element_located((By.NAME, 'imgCarregando')))
@@ -3395,9 +3496,17 @@ def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                             tempo_carregando += 1
                         else:
                             continua_carregando = False
+                    elif _recargas_totais >= 3:
+                        print(f"Consulta de CTe nao carregou apos {_recargas_totais} recargas -- seguindo sem esse arquivo.")
+                        continua_carregando = False
                     elif tempo_carregando >= 120:
                         on_consultas = False
-                        while not on_consultas:
+                        # Achado junto com o loop infinito de download
+                        # (01/10/2026): esse tambem nao tinha limite --
+                        # abrir_url_sefaz falhando sempre, ou o elemento
+                        # nunca aparecendo, prendia a thread aqui pra
+                        # sempre. Maximo 10 tentativas.
+                        for _tentativa_consulta in range(10):
                             try:
                                 if not abrir_url_sefaz(driver, consultascte, nome_thread):
                                     continue
@@ -3405,8 +3514,12 @@ def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                                     EC.presence_of_element_located(
                                         (By.XPATH, '//*[@id="tipoConsulta"]'))).click()
                                 on_consultas = True
+                                break
                             except TimeoutException:
                                 continue
+                        if not on_consultas:
+                            print(f"Nao consegui reabrir a consulta de CTe apos 10 tentativas -- seguindo.")
+                            _registrar_falha_parcial_documento(idAgendamento, id_company, name_company, 'CTE_EMISSOR')
                         sleep(0.2)
                         actions.send_keys(Keys.DOWN).perform()
                         sleep(0.2)
@@ -3444,6 +3557,7 @@ def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                             EC.presence_of_element_located((By.XPATH, '//*[@id="btnConsultar"]')))
                         campoConsulta.click()
                         tempo_carregando = 0
+                        _recargas_totais += 1
                         continua_carregando = True
             except Exception as e:
                 pass
@@ -3508,13 +3622,25 @@ def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
 
             downloaded = False
             arquivo = fr'{pastaArquivos}\ConsultaCteEmitidoRecebido.xlsx'
+            # Achado ao vivo em 01/10/2026: esse loop nao tinha timeout --
+            # se o clique em CampoDownload falhasse (ver except acima,
+            # "error#6"), o arquivo nunca seria baixado e essa thread
+            # ficava presa aqui PARA SEMPRE (travou de verdade por mais
+            # de 1h num agendamento real). Limite de 40s, igual os outros
+            # downloads desse arquivo (esperar_e_renomear_arquivo usa 30s
+            # por padrao).
+            _deadline_download = time() + 40
             while not downloaded:
                 if verify_downloaded(arquivo) is True:
                     downloaded = True
+                elif time() > _deadline_download:
+                    print(f"Timeout esperando download de CTe Emissor para {name_company} -- seguindo sem esse arquivo.")
+                    _registrar_falha_parcial_documento(idAgendamento, id_company, name_company, 'CTE_EMISSOR')
+                    break
                 else:
                     downloaded = False
                 sleep(1)
-            else:
+            if downloaded:
                 arquivoEmissoes = fr'{pastaArquivos}\CT-e Emissor.xlsx'
                 arquivos_filtrados = []
                 arquivos_xlsx = glob.glob(os.path.join(pastaArquivos, '*.xlsx'))
@@ -3539,7 +3665,7 @@ def exec_CTE_EMISSOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                                'success-gradient')
 
 
-def exec_CTE_TOMADOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+def exec_CTE_TOMADOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos, idAgendamento=None, id_company=None):
     actions = ActionChains(driver)
     temregistrosCTE = False
     if not temregistrosCTE:
@@ -3628,6 +3754,12 @@ def exec_CTE_TOMADOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
             try:
                 continua_carregando = True
                 tempo_carregando = 0
+                # Mesmo achado de 01/10/2026: sem isso, pagina presa em
+                # "carregando" pra sempre faz esse while recarregar a
+                # consulta e esperar mais 120s, de novo, pra sempre.
+                # Maximo 3 recargas (~6min de espera total) antes de
+                # desistir e seguir em frente.
+                _recargas_totais = 0
                 while continua_carregando:
                     carregando = WebDriverWait(driver, 2).until(
                         EC.presence_of_element_located((By.NAME, 'imgCarregando')))
@@ -3638,9 +3770,17 @@ def exec_CTE_TOMADOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                             tempo_carregando += 1
                         else:
                             continua_carregando = False
+                    elif _recargas_totais >= 3:
+                        print(f"Consulta de CTe nao carregou apos {_recargas_totais} recargas -- seguindo sem esse arquivo.")
+                        continua_carregando = False
                     elif tempo_carregando >= 120:
                         on_consultas = False
-                        while not on_consultas:
+                        # Achado junto com o loop infinito de download
+                        # (01/10/2026): esse tambem nao tinha limite --
+                        # abrir_url_sefaz falhando sempre, ou o elemento
+                        # nunca aparecendo, prendia a thread aqui pra
+                        # sempre. Maximo 10 tentativas.
+                        for _tentativa_consulta in range(10):
                             try:
                                 if not abrir_url_sefaz(driver, consultascte, nome_thread):
                                     continue
@@ -3648,8 +3788,12 @@ def exec_CTE_TOMADOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                                     EC.presence_of_element_located(
                                         (By.XPATH, '//*[@id="tipoConsulta"]'))).click()
                                 on_consultas = True
+                                break
                             except TimeoutException:
                                 continue
+                        if not on_consultas:
+                            print(f"Nao consegui reabrir a consulta de CTe apos 10 tentativas -- seguindo.")
+                            _registrar_falha_parcial_documento(idAgendamento, id_company, name_company, 'CTE_TOMADOR')
                         sleep(0.2)
                         actions.send_keys(Keys.DOWN).perform()
                         sleep(0.2)
@@ -3687,6 +3831,7 @@ def exec_CTE_TOMADOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
                             EC.presence_of_element_located((By.XPATH, '//*[@id="btnConsultar"]')))
                         campoConsulta.click()
                         tempo_carregando = 0
+                        _recargas_totais += 1
                         continua_carregando = True
             except Exception as e:
                 pass
@@ -3747,13 +3892,20 @@ def exec_CTE_TOMADOR(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
 
                 downloaded = False
                 arquivo = fr'{pastaArquivos}\ConsultaCteEmitidoRecebido.xlsx'
+                # Mesmo risco de loop infinito sem timeout do exec_CTE_EMISSOR
+                # acima -- corrigido junto, 01/10/2026.
+                _deadline_download = time() + 40
                 while not downloaded:
                     if verify_downloaded(arquivo) is True:
                         downloaded = True
+                    elif time() > _deadline_download:
+                        print(f"Timeout esperando download de CTe Tomador para {name_company} -- seguindo sem esse arquivo.")
+                        _registrar_falha_parcial_documento(idAgendamento, id_company, name_company, 'CTE_TOMADOR')
+                        break
                     else:
                         downloaded = False
                     sleep(1)
-                else:
+                if downloaded:
                     arquivoTomador = fr'{pastaArquivos}\CT-e Tomador.xlsx'
                     if os.path.exists(arquivoTomador):
                         os.remove(arquivoTomador)
