@@ -1703,7 +1703,7 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
                         nome_empresa = f"{name_company}"
 
                     if dadosAgendamento.tipo_pessoa_agendamento == 'PF':
-                        pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "FISCAL PJ", anoExec, mesExec,
+                        pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "RURAL", anoExec, mesExec,
                                                      "Relatórios")
                     else:
                         pastaArquivos = os.path.join(caminho_pasta, nome_empresa, "FISCAL PJ", anoExec, mesExec,

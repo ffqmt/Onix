@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 import glob
 from selenium.webdriver.common.action_chains import ActionChains
 import os
+import json
 import zipfile
 import requests
 import calendar
@@ -837,6 +838,38 @@ def MainExecution_Fisica_Padrao(listaPessoas, listaParametros, EmpresaExec, Ano,
                        'danger-gradient')
 
 
+def _arquivo_resume_agendamento(idAgendamento):
+    return os.path.join(root_path, f'_resume_agendamento_{idAgendamento}.json')
+
+
+def _carregar_empresas_ja_feitas(idAgendamento):
+    try:
+        with open(_arquivo_resume_agendamento(idAgendamento), 'r', encoding='utf-8') as f:
+            d = json.load(f)
+        if d.get('data') == datetime.now().strftime('%Y-%m-%d'):
+            return set(d.get('done_ids', []))
+    except Exception:
+        pass
+    return set()
+
+
+def _marcar_empresa_feita_resume(idAgendamento, id_company, cache):
+    cache.add(id_company)
+    try:
+        with open(_arquivo_resume_agendamento(idAgendamento), 'w', encoding='utf-8') as f:
+            json.dump({'data': datetime.now().strftime('%Y-%m-%d'), 'done_ids': sorted(cache)}, f)
+    except Exception as e:
+        print(f"Nao consegui salvar progresso de resume: {e}")
+
+
+def _limpar_resume_agendamento(idAgendamento):
+    try:
+        if os.path.exists(_arquivo_resume_agendamento(idAgendamento)):
+            os.remove(_arquivo_resume_agendamento(idAgendamento))
+    except Exception:
+        pass
+
+
 def MainExecution_Agendamentos(idAgendamento, listaParametros, EmpresaExec, idCidade=1):
     with app.app_context():
         dadosAgendamento = AgendamentosRPA.query.filter_by(id=idAgendamento).first()
@@ -886,6 +919,12 @@ def MainExecution_Agendamentos(idAgendamento, listaParametros, EmpresaExec, idCi
             dados = dadosPessoasPF(listaPessoas, EmpresaExec)
             desc = 'pessoa física'
 
+        total_empresas_agendamento = len(dados)
+        empresas_ja_feitas = _carregar_empresas_ja_feitas(idAgendamento)
+        if empresas_ja_feitas:
+            dados = [p for p in dados if p['id'] not in empresas_ja_feitas]
+            print(f"Retomando Agendamento {idAgendamento}: {len(empresas_ja_feitas)} ja feitas hoje, {len(dados)} restantes de {total_empresas_agendamento}.")
+
         listaLen = len(listaPessoas)
         percentilProcesso = 80
         percentilPorPessoa = int(percentilProcesso / listaLen)
@@ -899,8 +938,8 @@ def MainExecution_Agendamentos(idAgendamento, listaParametros, EmpresaExec, idCi
         logado = exec_LOGIN(driver, nome_thread, dadosLogin['login'], dadosLogin['senha'])
 
         if logado:
-            counter = 0
-            print(f'Total empresas: {len(dados)} - Agendamento {dadosAgendamento.id} - Thread: {nome_thread}')
+            counter = len(empresas_ja_feitas)
+            print(f'Total empresas: {total_empresas_agendamento} - Agendamento {dadosAgendamento.id} - Thread: {nome_thread}')
             for pessoa in dados:
                 includeLogData(nome_thread,
                                f'PROCESSOS - {pessoa["name"]}',
@@ -1045,76 +1084,77 @@ def MainExecution_Agendamentos(idAgendamento, listaParametros, EmpresaExec, idCi
 
                 '########## FINALIZA O DRIVER E LOGS/PERCENTIL #########'
 
-            includeLogData(nome_thread,
-                           f'PROCESSOS - {pessoa["name"]}',
-                           'Processos finalizados para a empresa...',
-                           'BOT',
-                           'BOT',
-                           'primary-gradient',
-                           'SUCESSO',
-                           'success-gradient')
-            setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
-            percentilInicial = percentilInicial + percentilPorPessoa
-
-            counter += 1
-            print(
-                f'Finalizado: {counter}/{len(dados)} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
-
-            '######### ZIPA PASTA ESPECIFICA E ENVIA #############'
-
-            caminhoZip = os.path.join(caminho_pasta, nome_empresa)
-
-            try:
-                shutil.make_archive(caminhoZip, 'zip', caminhoZip)
                 includeLogData(nome_thread,
-                               f'ARQUIVO ZIP EMPRESA',
-                               'Arquivo gerado e disponível!',
+                               f'PROCESSOS - {pessoa["name"]}',
+                               'Processos finalizados para a empresa...',
                                'BOT',
                                'BOT',
                                'primary-gradient',
                                'SUCESSO',
                                'success-gradient')
-                setPercentilProcesso(nome_thread, 100)
-            except Exception as e:
-                print(f"Ocorreu um erro ao zipar a pasta: {e}")
-                includeLogData(nome_thread,
-                               f'ARQUIVO ZIP EMPRESA',
-                               'Erro ao gerar arquivo!',
-                               'BOT',
-                               'RPA',
-                               'primary-gradient',
-                               'ERRO',
-                               'danger-gradient')
+                setPercentilProcesso(nome_thread, percentilInicial + percentilPorPessoa)
+                percentilInicial = percentilInicial + percentilPorPessoa
 
-            tipo_envio = 'zip'
+                counter += 1
+                _marcar_empresa_feita_resume(idAgendamento, id_company, empresas_ja_feitas)
+                print(
+                    f'Finalizado: {counter}/{total_empresas_agendamento} - AgendamentoID {dadosAgendamento.id} - Thread: fetchlog-{nome_thread} - Pessoa: ({id_company}) {name_company}')
 
-            if tipo_envio == 'receiver':
-                '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
-                DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
-                if DadosEmpresaEnvio.autorizado_schedule:
-                    pathEnvio = fr"{dadosAgendamento.path_receiver}\{nome_empresa}"
-                    receiver_ip = DadosEmpresaEnvio.receiver_ip
-                    receiver_ip_secondary = DadosEmpresaEnvio.receiver_ip_secondary
-                    receiver_port = DadosEmpresaEnvio.receiver_port
+                '######### ZIPA PASTA ESPECIFICA E ENVIA #############'
+
+                caminhoZip = os.path.join(caminho_pasta, nome_empresa)
+
+                try:
+                    shutil.make_archive(caminhoZip, 'zip', caminhoZip)
+                    includeLogData(nome_thread,
+                                   f'ARQUIVO ZIP EMPRESA',
+                                   'Arquivo gerado e disponível!',
+                                   'BOT',
+                                   'BOT',
+                                   'primary-gradient',
+                                   'SUCESSO',
+                                   'success-gradient')
+                    setPercentilProcesso(nome_thread, 100)
+                except Exception as e:
+                    print(f"Ocorreu um erro ao zipar a pasta: {e}")
+                    includeLogData(nome_thread,
+                                   f'ARQUIVO ZIP EMPRESA',
+                                   'Erro ao gerar arquivo!',
+                                   'BOT',
+                                   'RPA',
+                                   'primary-gradient',
+                                   'ERRO',
+                                   'danger-gradient')
+
+                tipo_envio = 'zip'
+
+                if tipo_envio == 'receiver':
+                    '### ENVIA OS ARQUIVOS PARA O SERVIDOR BASE TIPO PESSOA'
+                    DadosEmpresaEnvio = Empresas.query.filter_by(id=dadosAgendamento.id_empresa).first()
+                    if DadosEmpresaEnvio.autorizado_schedule:
+                        pathEnvio = fr"{dadosAgendamento.path_receiver}\{nome_empresa}"
+                        receiver_ip = DadosEmpresaEnvio.receiver_ip
+                        receiver_ip_secondary = DadosEmpresaEnvio.receiver_ip_secondary
+                        receiver_port = DadosEmpresaEnvio.receiver_port
+                        zipData = os.path.join(fr"{caminhoZip}.zip")
+
+                        print('Iniciando envio para:')
+                        print(f'IP Primario: {receiver_ip}')
+                        print(f'IP Secundario: {receiver_ip_secondary}')
+                        print(f'Porta: {receiver_port}')
+                        print(f'zipDataPath: {zipData}')
+                        print(f'ReceiverPath: {pathEnvio}')
+                        SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_ip_secondary, receiver_port,
+                                    pathEnvio)
+
+                        print('Envio Finalizado!')
+
+                elif tipo_envio == 'zip':
+                    '### EXTRAI ARQUIVOS NO SERVIDOR BASE TIPO PESSOA'
+                    pathEnvio = os.path.join(dadosAgendamento.path_receiver, nome_empresa)
                     zipData = os.path.join(fr"{caminhoZip}.zip")
-
-                    print('Iniciando envio para:')
-                    print(f'IP Primario: {receiver_ip}')
-                    print(f'IP Secundario: {receiver_ip_secondary}')
-                    print(f'Porta: {receiver_port}')
-                    print(f'zipDataPath: {zipData}')
-                    print(f'ReceiverPath: {pathEnvio}')
-                    SendRPAData(dadosAgendamento.id, zipData, receiver_ip, receiver_ip_secondary, receiver_port,
-                                pathEnvio)
-
-                    print('Envio Finalizado!')
-
-            elif tipo_envio == 'zip':
-                '### EXTRAI ARQUIVOS NO SERVIDOR BASE TIPO PESSOA'
-                pathEnvio = os.path.join(dadosAgendamento.path_receiver, nome_empresa)
-                zipData = os.path.join(fr"{caminhoZip}.zip")
-                with zipfile.ZipFile(zipData, 'r') as zip_ref:
-                    zip_ref.extractall(pathEnvio)
+                    with zipfile.ZipFile(zipData, 'r') as zip_ref:
+                        zip_ref.extractall(pathEnvio)
 
         # Esta função (execução agendada) nunca fechava o driver, nem no
         # sucesso nem na falha -- diferente das outras 4 variantes
@@ -1134,6 +1174,8 @@ def MainExecution_Agendamentos(idAgendamento, listaParametros, EmpresaExec, idCi
         else:
             dadosAgendamento.status = 'Execução Finalizada'
         db.session.commit()
+        if logado:
+            _limpar_resume_agendamento(idAgendamento)
 
         print(f'Finalizou Execução do item agendado. (ID:{dadosAgendamento.id})')
         sleep(5)
