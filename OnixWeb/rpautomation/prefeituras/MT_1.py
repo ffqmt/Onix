@@ -1,3 +1,4 @@
+import re
 import shutil
 import threading
 
@@ -2845,6 +2846,24 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
                 return tr
         return None
 
+    def _pesquisar():
+        # a tabela e recarregada por ajax: espera aparecer linha ou "Nenhum resultado"
+        driver.find_element(By.XPATH, "//button[contains(., 'Pesquisar')]").click()
+        limite = time.time() + 12
+        while time.time() < limite:
+            sleep(0.5)
+            try:
+                if driver.find_elements(By.CSS_SELECTOR, "table tbody tr") and                         ("Nenhum resultado" in driver.page_source or _linha_do_mes() is not None):
+                    break
+            except Exception:
+                pass
+        sleep(0.5)
+
+    def _fechada(tr):
+        # o portal tem coluna "Protocolo" depois de "Fechada?", entao o "Sim" nao e
+        # mais a ultima palavra da linha (por isso o ja-fechado nao era detectado).
+        return re.search(r"Sim", tr.text.split(nome_mes, 1)[-1]) is not None
+
     try:
         driver.get(URL_DECLARACAO_TOMADOR_PVA)
         campo_ano = WebDriverWait(driver, 10).until(
@@ -2852,14 +2871,17 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
         )
         campo_ano.clear()
         campo_ano.send_keys(str(ano_num))
-        driver.find_element(By.XPATH, "//button[contains(., 'Pesquisar')]").click()
-        sleep(2)
+        _pesquisar()
 
         linha = _linha_do_mes()
 
         if linha is None:
             print(f"ENCERRAMENTO TOMADOS - {name_company}: nenhum movimento {nome_mes}/{ano_num} -- criando.")
-            driver.find_element(By.XPATH, "//button[contains(., 'Novo Movimento')]").click()
+            botao_novo = WebDriverWait(driver, 15).until(
+                lambda d: next((b for b in d.find_elements(By.XPATH, "//button[contains(., 'Novo Movimento')]")
+                                if b.is_displayed() and "ui-state-disabled" not in (b.get_attribute("class") or "")), None)
+            )
+            botao_novo.click()
             sleep(2)
 
             campo_ano_form = driver.find_element(By.CSS_SELECTOR, 'input[id$=":itAno"]')
@@ -2890,14 +2912,13 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
             )
             campo_ano.clear()
             campo_ano.send_keys(str(ano_num))
-            driver.find_element(By.XPATH, "//button[contains(., 'Pesquisar')]").click()
-            sleep(2)
+            _pesquisar()
             linha = _linha_do_mes()
 
         if linha is None:
             raise Exception(f"Movimento {nome_mes}/{ano_num} nao encontrado mesmo apos tentar criar.")
 
-        if linha.text.strip().split()[-1] == "Sim":
+        if _fechada(linha):
             print(f"ENCERRAMENTO TOMADOS - {name_company}: movimento {nome_mes}/{ano_num} ja fechado, nada a fazer.")
             includeLogData(
                 nome_thread, f'ENCERRAMENTO TOMADOS - {name_company}',
@@ -2906,12 +2927,20 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
             )
             return
 
-        linha.click()
+        for _t in range(3):
+            try:
+                linha.click()
+                break
+            except Exception:
+                sleep(1)
+                linha = _linha_do_mes()
+                if linha is None:
+                    raise Exception(f"Linha do movimento {nome_mes}/{ano_num} sumiu antes do clique.")
         sleep(1.5)
 
-        driver.find_element(By.ID, "frmActions:bLancar").click()
+        WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.ID, "frmActions:bLancar"))).click()
         sleep(2)
-        driver.find_element(By.ID, "frmActions:bImportarNotas").click()
+        WebDriverWait(driver, 15).until(EC.element_to_be_clickable((By.ID, "frmActions:bImportarNotas"))).click()
         sleep(2)
 
         try:
