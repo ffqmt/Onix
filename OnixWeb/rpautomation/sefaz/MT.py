@@ -199,6 +199,26 @@ def diagnosticar_estado_pagina(driver, nome_thread, contexto) -> None:
         print(f"Erro no diagnostico da pagina: {e}")
 
 
+def _aguardar_download_consulta_xls(pasta, limite_s=8):
+    """Espera o .xls da consulta (ConsultaNFeEmitidasRecebidas) terminar de baixar em vez de
+    dormir um tempo fixo: sai assim que o arquivo aparece, sem .crdownload e com tamanho
+    estavel; no maximo limite_s (o mesmo tempo fixo de antes)."""
+    fim = time() + limite_s
+    anterior = -1
+    while time() < fim:
+        sleep(0.5)
+        try:
+            baixando = glob.glob(os.path.join(pasta, '*.crdownload'))
+            xls = [f for f in glob.glob(os.path.join(pasta, '*.xls')) if 'ConsultaNFeEmitidasRecebidas' in f]
+            if xls and not baixando:
+                tam = sum(os.path.getsize(f) for f in xls)
+                if tam > 0 and tam == anterior:
+                    return
+                anterior = tam
+        except Exception:
+            pass
+
+
 def abrir_url_sefaz(driver, url, nome_thread='BOT', tentativas=3, timeout=45) -> bool:
     # Reduzido de 5 para 3 tentativas em 01/10/2026 -- o backoff crescente
     # (ate ~90s por tentativa) fazia uma pagina que ja estava morta gastar
@@ -211,8 +231,23 @@ def abrir_url_sefaz(driver, url, nome_thread='BOT', tentativas=3, timeout=45) ->
             driver.set_page_load_timeout(timeout)
             driver.get(url)
             wait = random.uniform(4.0, 7.0)
-            print(f"  Esperando {wait:.1f}s para F5 JS challenge assentar...")
-            sleep(wait)
+            print(f"  Esperando ate {wait:.1f}s para F5 JS challenge assentar...")
+            # espera adaptativa: a pagina do desafio do F5 e um stub sem formulario; assim que a
+            # pagina real (readyState completo e com formulario) aparece em duas leituras seguidas,
+            # segue. O teto continua sendo o tempo aleatorio de antes, entao o pior caso nao muda.
+            _fim = time() + wait
+            sleep(1.5)
+            _ok_seguidos = 0
+            while time() < _fim:
+                try:
+                    _pronta = driver.execute_script(
+                        "return document.readyState === 'complete' && document.forms.length > 0;")
+                except Exception:
+                    _pronta = False
+                _ok_seguidos = _ok_seguidos + 1 if _pronta else 0
+                if _ok_seguidos >= 2:
+                    break
+                sleep(0.5)
             
             # Verifica erros de conexão do Chrome
             if pagina_tem_erro_conexao(driver):
@@ -1500,8 +1535,24 @@ def MainExecution_Fisica_Padrao(listaPessoas, EmpresaExec, Ano, Mes):
             print(f"Erro ao restaurar rede: {e}")
 
 
+def _shard_execucao():
+    """Execucao em paralelo: ONIX_SHARD="k/n" faz este processo cuidar so das empresas com
+    id % n == k (cada processo com seu proprio Chrome e seu proprio arquivo de resume).
+    Sem a variavel, comportamento normal (todas as empresas)."""
+    try:
+        k, n = os.environ.get('ONIX_SHARD', '').split('/')
+        k, n = int(k), int(n)
+        if n > 1 and 0 <= k < n:
+            return k, n
+    except Exception:
+        pass
+    return None
+
+
 def _arquivo_resume_agendamento(idAgendamento):
-    return os.path.join(root_path, f'_resume_agendamento_{idAgendamento}.json')
+    shard = _shard_execucao()
+    sufixo = f'_s{shard[0]}' if shard else ''
+    return os.path.join(root_path, f'_resume_agendamento_{idAgendamento}{sufixo}.json')
 
 
 def _carregar_empresas_ja_feitas(idAgendamento):
@@ -1513,15 +1564,20 @@ def _carregar_empresas_ja_feitas(idAgendamento):
     sucesso fica marcada aqui, e a proxima tentativa pula direto pro que
     falta.
     """
-    caminho = _arquivo_resume_agendamento(idAgendamento)
-    try:
-        with open(caminho, 'r', encoding='utf-8') as f:
-            dados_resume = json.load(f)
-        if dados_resume.get('data') == datetime.now().strftime('%Y-%m-%d'):
-            return set(dados_resume.get('done_ids', []))
-    except Exception:
-        pass
-    return set()
+    caminhos = [_arquivo_resume_agendamento(idAgendamento)]
+    if _shard_execucao():
+        # em paralelo, tambem conta o que a execucao nao-paralela ja tinha feito
+        caminhos.append(os.path.join(root_path, f'_resume_agendamento_{idAgendamento}.json'))
+    feitas = set()
+    for caminho in caminhos:
+        try:
+            with open(caminho, 'r', encoding='utf-8') as f:
+                dados_resume = json.load(f)
+            if dados_resume.get('data') == datetime.now().strftime('%Y-%m-%d'):
+                feitas |= set(dados_resume.get('done_ids', []))
+        except Exception:
+            pass
+    return feitas
 
 
 def _marcar_empresa_feita_resume(idAgendamento, id_company, done_ids_cache):
@@ -1645,6 +1701,11 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
             dados = [p for p in dados if p['id'] not in empresas_ja_feitas]
             print(f"Retomando Agendamento {idAgendamento}: {len(empresas_ja_feitas)} ja feitas hoje, "
                   f"{len(dados)} restantes de {total_empresas_agendamento}.")
+
+        shard = _shard_execucao()
+        if shard:
+            dados = [p for p in dados if p['id'] % shard[1] == shard[0]]
+            print(f"Shard {shard[0]}/{shard[1]}: {len(dados)} empresas para este processo.")
 
         listaLen = len(listaPessoas)
         percentilProcesso = 80
@@ -1866,7 +1927,10 @@ def MainExecution_Agendamentos(idAgendamento, idEstado):
             else:
                 dadosAgendamento.status = 'Execução Finalizada'
             db.session.commit()
-            _limpar_resume_agendamento(idAgendamento)
+            if logado:
+                # so apaga o progresso se o login funcionou e o lote rodou ate o fim; login que
+                # falha nao pode zerar o que ja foi feito (aconteceu em 02/11/2026)
+                _limpar_resume_agendamento(idAgendamento)
 
             print(f'Finalizou Execução do item agendado. (ID:{dadosAgendamento.id})')
             sleep(5)
@@ -2351,6 +2415,28 @@ def selecionar_certificado_via_uia(nome_thread=None, certificate_display_name=No
 
 
 def exec_LOGIN_CERTIFICADO(driver, nome_thread):
+    # so um login por certificado por vez no PC inteiro (o dialogo nativo do Windows e unico):
+    # em execucao paralela os processos fazem fila neste arquivo de trava.
+    import msvcrt
+    with open(os.path.join(root_path, '_cert_login.lock'), 'a+b') as trava:
+        while True:
+            try:
+                trava.seek(0)
+                msvcrt.locking(trava.fileno(), msvcrt.LK_NBLCK, 1)
+                break
+            except OSError:
+                sleep(2)
+        try:
+            return _exec_LOGIN_CERTIFICADO_impl(driver, nome_thread)
+        finally:
+            try:
+                trava.seek(0)
+                msvcrt.locking(trava.fileno(), msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+
+
+def _exec_LOGIN_CERTIFICADO_impl(driver, nome_thread):
     global _stop_watcher
     _stop_watcher = False
     
@@ -3099,7 +3185,7 @@ def exec_NFE_SAIDA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idDoc
 
         if not abrir_url_sefaz(driver, consultas, nome_thread):
             return
-        sleep(8)
+        _aguardar_download_consulta_xls(pastaArquivos)
 
         arquivoSaida = fr'{pastaArquivos}\Sefaz-Saidas.xls'
         arquivos_filtrados = []
@@ -3362,7 +3448,7 @@ def exec_NFE_ENTRADA(driver, nome_thread, tipo_exec, name_company, cnpj_cpf, idD
             CampoDownload.click()
         except Exception:
             pass
-        sleep(8)
+        _aguardar_download_consulta_xls(pastaArquivos)
 
         arquivoEntrada = fr'{pastaArquivos}\Sefaz-Entradas.xls'
         if os.path.exists(arquivoEntrada):
