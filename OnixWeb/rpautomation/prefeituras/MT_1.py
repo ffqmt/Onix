@@ -2810,7 +2810,7 @@ _NOMES_MES_DECLARACAO_PVA = {
 }
 
 
-def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos):
+def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno, pastaArquivos, _tentativa=1):
     """Mapeado ao vivo em 27-28/09/2026 (autorizado pelo usu\u00e1rio, criou 1
     movimento de teste real pra INTEGRA CONSULTORIA). Fluxo confirmado:
     lista (busca por Ano, filtra a linha certa pelo nome do m\u00eas no texto
@@ -2862,7 +2862,10 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
     def _fechada(tr):
         # o portal tem coluna "Protocolo" depois de "Fechada?", entao o "Sim" nao e
         # mais a ultima palavra da linha (por isso o ja-fechado nao era detectado).
-        return re.search(r"Sim", tr.text.split(nome_mes, 1)[-1]) is not None
+        # le a celula da coluna "Fechada?" (7a) por textContent, que ignora CSS
+        tds = tr.find_elements(By.TAG_NAME, "td")
+        celula = (tds[6].get_attribute("textContent") or "") if len(tds) >= 7 else (tr.get_attribute("textContent") or "")
+        return celula.replace("Fechada?", "").strip().lower().startswith("sim")
 
     try:
         driver.get(URL_DECLARACAO_TOMADOR_PVA)
@@ -2877,10 +2880,22 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
 
         if linha is None:
             print(f"ENCERRAMENTO TOMADOS - {name_company}: nenhum movimento {nome_mes}/{ano_num} -- criando.")
-            botao_novo = WebDriverWait(driver, 15).until(
-                lambda d: next((b for b in d.find_elements(By.XPATH, "//button[contains(., 'Novo Movimento')]")
-                                if b.is_displayed() and "ui-state-disabled" not in (b.get_attribute("class") or "")), None)
-            )
+            try:
+                botao_novo = WebDriverWait(driver, 15).until(
+                    lambda d: next((b for b in d.find_elements(By.XPATH, "//button[contains(., 'Novo Movimento')]")
+                                    if b.is_displayed() and "ui-state-disabled" not in (b.get_attribute("class") or "")), None)
+                )
+            except TimeoutException:
+                # confirmado ao vivo em 02/11/2026 (empresa 51): sem nenhum movimento em 2026 o
+                # portal deixa "Novo Movimento" desabilitado -- nao da pra abrir por aqui.
+                print(f"ENCERRAMENTO TOMADOS - {name_company}: botao 'Novo Movimento' desabilitado no portal.")
+                includeLogData(
+                    nome_thread, f'ENCERRAMENTO TOMADOS - {name_company}',
+                    f"O portal nao permite abrir o movimento {nome_mes}/{ano_num} (botao 'Novo Movimento' desabilitado). "
+                    f"Verificar pendencia do contribuinte no portal.",
+                    cnpj_cpf, 'ENCERRAMENTO TOMADOS', 'info-gradient', 'ATENÇÃO', 'warning-gradient',
+                )
+                return
             botao_novo.click()
             sleep(2)
 
@@ -2961,6 +2976,10 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
             )
 
     except Exception as e:
+        if _tentativa < 2 and "stale element" in str(e).lower():
+            sleep(2)
+            return exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes, execAno,
+                                    pastaArquivos, _tentativa=2)
         print(f"Erro ENCERRAMENTO TOMADOS - {name_company}: {e}")
         _salvar_diagnostico(driver, f"enc_tomados_erro_{cnpj_cpf}")
         includeLogData(

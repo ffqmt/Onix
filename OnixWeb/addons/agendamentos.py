@@ -144,6 +144,8 @@ def agendamentoAddSchenduler(agendamentoID):
                 minute=data_min,
                 second=0,
                 month='*',
+                misfire_grace_time=3600,
+                coalesce=True,
                 start_date=fuso_horario.localize(agendamento.data_primeiro_agendamento),
                 end_date=empresaAgendamento.licensed_until
             )
@@ -198,6 +200,8 @@ def carregarAgendamentosAnteriores():
                     minute=data_min,
                     second=0,
                     month='*',
+                    misfire_grace_time=3600,
+                    coalesce=True,
                     start_date=fuso_horario.localize(agendamento.data_primeiro_agendamento),
                     end_date=empresaAgendamento.licensed_until
                 )
