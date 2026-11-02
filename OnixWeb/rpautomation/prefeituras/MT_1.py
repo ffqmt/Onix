@@ -6,7 +6,7 @@ import PyPDF2
 import pandas as pd
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.common import NoSuchElementException, ElementNotInteractableException, TimeoutException, NoSuchWindowException
+from selenium.common import StaleElementReferenceException, NoSuchElementException, ElementNotInteractableException, TimeoutException, NoSuchWindowException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.chrome.service import Service
@@ -2841,23 +2841,36 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
         return
 
     def _linha_do_mes():
-        for tr in driver.find_elements(By.CSS_SELECTOR, "table tbody tr"):
-            if nome_mes in tr.text:
-                return tr
+        # a tabela e redesenhada por ajax; linha "velha" no meio da leitura = tenta de novo
+        for _ in range(4):
+            try:
+                for tr in driver.find_elements(By.CSS_SELECTOR, "table tbody tr"):
+                    if nome_mes in (tr.get_attribute("textContent") or ""):
+                        return tr
+                return None
+            except StaleElementReferenceException:
+                sleep(1)
         return None
 
-    def _pesquisar():
-        # a tabela e recarregada por ajax: espera aparecer linha ou "Nenhum resultado"
-        driver.find_element(By.XPATH, "//button[contains(., 'Pesquisar')]").click()
-        limite = time.time() + 12
-        while time.time() < limite:
-            sleep(0.5)
+    def _aguardar_portal(limite_s=20):
+        # o portal mostra "Por Favor, aguarde..." durante cada ajax; o "Nenhum resultado"
+        # antigo continua na pagina ate a resposta chegar (era o que enganava a leitura).
+        fim = time.time() + limite_s
+        sleep(1)
+        while time.time() < fim:
             try:
-                if driver.find_elements(By.CSS_SELECTOR, "table tbody tr") and                         ("Nenhum resultado" in driver.page_source or _linha_do_mes() is not None):
-                    break
+                ocupado = any(e.is_displayed() for e in driver.find_elements(
+                    By.XPATH, "//*[contains(normalize-space(text()), 'Por Favor, aguarde')]"))
             except Exception:
-                pass
+                ocupado = True
+            if not ocupado:
+                break
+            sleep(0.5)
         sleep(0.5)
+
+    def _pesquisar():
+        driver.find_element(By.XPATH, "//button[contains(., 'Pesquisar')]").click()
+        _aguardar_portal()
 
     def _fechada(tr):
         # o portal tem coluna "Protocolo" depois de "Fechada?", entao o "Sim" nao e
@@ -2896,30 +2909,41 @@ def exec_ENC_TOMADOS(driver, nome_thread, name_company, cnpj_cpf, idDoc, execMes
                     cnpj_cpf, 'ENCERRAMENTO TOMADOS', 'info-gradient', 'ATENÇÃO', 'warning-gradient',
                 )
                 return
-            botao_novo.click()
+            for _t in range(4):
+                try:
+                    botao_novo.click()
+                    break
+                except StaleElementReferenceException:
+                    # o botao e redesenhado por ajax logo apos o Pesquisar: pega de novo
+                    sleep(1.5)
+                    botao_novo = next((b for b in driver.find_elements(By.XPATH, "//button[contains(., 'Novo Movimento')]")
+                                       if b.is_displayed()), None)
+                    if botao_novo is None:
+                        raise
             sleep(2)
 
-            campo_ano_form = driver.find_element(By.CSS_SELECTOR, 'input[id$=":itAno"]')
-            if campo_ano_form.get_attribute("value") != str(ano_num):
-                campo_ano_form.clear()
-                campo_ano_form.send_keys(str(ano_num))
-
-            select_mes = driver.find_element(By.CSS_SELECTOR, 'select[id$=":somMes_input"]')
-            if select_mes.get_attribute("value") != str(mes_num):
-                driver.execute_script(
-                    """
-                    var sel = arguments[0], val = arguments[1];
-                    sel.value = val;
-                    sel.dispatchEvent(new Event('change', {bubbles: true}));
-                    """,
-                    select_mes, str(mes_num),
-                )
-                sleep(0.5)
+            # formulario "Novo Movimento": o portal re-renderiza por ajax, entao busca os
+            # elementos de novo a cada uso (referencia guardada ficava "stale"). O Mes e um
+            # selectOneMenu do PrimeFaces (confirmado ao vivo em 02/11/2026): clica no widget e no item.
+            if driver.find_element(By.CSS_SELECTOR, 'input[id$=":itAno"]').get_attribute("value") != str(ano_num):
+                driver.find_element(By.CSS_SELECTOR, 'input[id$=":itAno"]').clear()
+                driver.find_element(By.CSS_SELECTOR, 'input[id$=":itAno"]').send_keys(str(ano_num))
+                sleep(1)
+            if driver.find_element(By.CSS_SELECTOR, 'select[id$=":somMes_input"]').get_attribute("value") != str(mes_num):
+                driver.find_element(By.CSS_SELECTOR, "div[id$='somMes']").click()
+                sleep(1)
+                for item in driver.find_elements(By.CSS_SELECTOR, "li.ui-selectonemenu-item"):
+                    if item.get_attribute("data-label") == nome_mes:
+                        item.click()
+                        break
+                sleep(1.5)
+            if driver.find_element(By.CSS_SELECTOR, 'select[id$=":somMes_input"]').get_attribute("value") != str(mes_num):
+                raise Exception(f"Nao consegui selecionar o mes {nome_mes} no formulario Novo Movimento.")
 
             driver.find_element(By.XPATH, "//button[contains(., 'Salvar')]").click()
             sleep(1.5)
             driver.find_element(By.XPATH, "//button[contains(., 'Sim')]").click()
-            sleep(2)
+            _aguardar_portal(25)
 
             driver.get(URL_DECLARACAO_TOMADOR_PVA)
             campo_ano = WebDriverWait(driver, 10).until(
