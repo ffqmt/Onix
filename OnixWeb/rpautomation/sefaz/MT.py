@@ -4113,6 +4113,13 @@ def exec_NFCE(driver, nome_thread, name_company, cnpj_cpf, ie, execMes, execAno,
      driver.save_screenshot(pasta_destino)
      temregistrosNFC = False
 
+    elif 'Conjunto de Resultados Fechado' in msg_erro:
+     # erro interno da SEFAZ ("Conjunto de Resultados Fechado: findColumn"): a consulta nao
+     # devolveu tabela, entao nao ha o que baixar. Antes seguia pro download e estourava
+     # timeout como "Erro ao baixar NFC-e" (67 empresas em 01/11/2026).
+     temregistrosNFC = False
+     msg_erro = f'{msg_erro} (erro interno da SEFAZ; reprocessar depois)'
+
     includeLogData(
      nome_thread,
      f'NFCe - {name_company}',
@@ -4230,6 +4237,7 @@ def exec_NFCE(driver, nome_thread, name_company, cnpj_cpf, ie, execMes, execAno,
    # derrubar as outras 700+ da fila -- loga e retorna, deixando o
    # loop seguir pra próxima empresa.
    print(f"Erro ao baixar NFC-e: {e}")
+   diagnosticar_estado_pagina(driver, nome_thread, f"nfce_erro_{cnpj_cpf}")
    includeLogData(
     nome_thread,
     f'NFCe - {name_company}',
